@@ -1,0 +1,5 @@
+{
+  "name": "CareConnect",
+  "description": "A comprehensive clinic appointment management system for doctors, receptionists, and patients. It allows booking, managing, and tracking appointments with ease.",
+  "requestFramePermissions": []
+}
