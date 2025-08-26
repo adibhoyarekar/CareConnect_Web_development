@@ -1,4 +1,4 @@
-import { Doctor, Patient, Appointment, Role, AppointmentStatus, User, MockGoogleAccount, MedicalRecord, Review } from './types';
+import { Doctor, Patient, Appointment, Role, AppointmentStatus, User, MockGoogleAccount, MedicalRecord, Review, Notification, NotificationType } from './types';
 
 const MOCK_PASSWORD = 'password123';
 
@@ -46,4 +46,7 @@ export const MOCK_MEDICAL_RECORDS: MedicalRecord[] = [
 
 export const MOCK_REVIEWS: Review[] = [
     { id: 'rev1', patientId: 'pat3', doctorId: 'doc2', appointmentId: 'apt3', rating: 5, comment: 'Dr. Smith was fantastic! Very professional and made me feel at ease.', date: new Date().toISOString() },
+    { id: 'rev2', patientId: 'pat1', doctorId: 'doc2', appointmentId: 'apt1', rating: 4, comment: 'Dr. Smith is very knowledgeable and caring. I had a great experience.', date: new Date().toISOString() },
 ];
+
+export const MOCK_NOTIFICATIONS: Notification[] = [];

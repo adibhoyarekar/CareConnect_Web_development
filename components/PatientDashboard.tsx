@@ -143,6 +143,7 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ patient, appointmen
 
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Book an Appointment">
         <AppointmentForm
+          appointments={appointments}
           patients={patients}
           doctors={doctors}
           reviews={reviews}
@@ -160,7 +161,10 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ patient, appointmen
       {reviewingAppointment && (
         <ReviewModal
             isOpen={isReviewModalOpen}
-            onClose={() => setIsReviewModalOpen(false)}
+            onClose={() => {
+                setIsReviewModalOpen(false);
+                setReviewingAppointment(null);
+            }}
             onSubmit={handleSaveReview}
             appointment={reviewingAppointment}
             patient={patient}

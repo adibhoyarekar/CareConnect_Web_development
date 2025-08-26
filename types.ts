@@ -76,3 +76,18 @@ export interface Review {
   comment: string;
   date: string; // ISO string
 }
+
+export enum NotificationType {
+  Reminder = 'Reminder',
+  Confirmation = 'Confirmation',
+}
+
+export interface Notification {
+  id: string;
+  userId: string;
+  appointmentId: string;
+  message: string;
+  date: string; // ISO string
+  read: boolean;
+  type: NotificationType;
+}

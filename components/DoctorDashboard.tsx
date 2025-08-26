@@ -139,10 +139,16 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ doctor, appointments,
         </div>
         <div className="bg-white p-6 rounded-xl shadow-lg flex flex-col justify-center items-center text-center">
             <h3 className="text-lg font-semibold text-gray-800">Your Rating</h3>
-            <p className="text-4xl font-bold text-yellow-500 my-2">
+            <p className="text-4xl font-bold text-yellow-500 mt-2">
                 {averageRating.toFixed(1)} <span className="text-2xl">⭐</span>
             </p>
-            <button onClick={() => setIsReviewModalOpen(true)} className="text-sm text-primary-600 hover:underline">{doctorReviews.length} Reviews</button>
+            <p className="text-sm text-gray-500 mb-4">from {doctorReviews.length} reviews</p>
+            <button 
+                onClick={() => setIsReviewModalOpen(true)} 
+                className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all"
+            >
+                View All Reviews
+            </button>
         </div>
       </div>
 

@@ -5,6 +5,7 @@ interface AppointmentFormProps {
   appointment?: Appointment | null;
   patients: Patient[];
   doctors: Doctor[];
+  appointments: Appointment[];
   reviews: Review[];
   onSave: (appointment: Omit<Appointment, 'id'> | Appointment) => void;
   onClose: () => void;
@@ -12,7 +13,7 @@ interface AppointmentFormProps {
   currentUserRole: string;
 }
 
-const AppointmentForm: React.FC<AppointmentFormProps> = ({ appointment, patients, doctors, reviews, onSave, onClose, currentUserId, currentUserRole }) => {
+const AppointmentForm: React.FC<AppointmentFormProps> = ({ appointment, patients, doctors, appointments, reviews, onSave, onClose, currentUserId, currentUserRole }) => {
   const [formData, setFormData] = useState({
     patientId: appointment?.patientId || (currentUserRole === 'Patient' ? currentUserId : ''),
     doctorId: appointment?.doctorId || '',
@@ -21,6 +22,8 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ appointment, patients
     reason: appointment?.reason || '',
     status: appointment?.status || AppointmentStatus.Pending,
   });
+  const [doctorAvailability, setDoctorAvailability] = useState<string | null>(null);
+  const [bookingError, setBookingError] = useState<string | null>(null);
 
   useEffect(() => {
     if (appointment) {
@@ -35,6 +38,37 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ appointment, patients
     }
   }, [appointment]);
 
+  useEffect(() => {
+    // Update doctor availability when doctorId changes
+    if (formData.doctorId) {
+        const selectedDoctor = doctors.find(d => d.id === formData.doctorId);
+        setDoctorAvailability(selectedDoctor?.availableTime || 'Not specified');
+    } else {
+        setDoctorAvailability(null);
+    }
+
+    // Validate booking time if all fields are filled
+    if (formData.doctorId && formData.date && formData.time) {
+        const isDoubleBooked = appointments.some(appt => 
+            appt.doctorId === formData.doctorId &&
+            appt.date === formData.date &&
+            appt.time === formData.time &&
+            appt.id !== appointment?.id && // Exclude the current appointment if editing
+            (appt.status === AppointmentStatus.Confirmed || appt.status === AppointmentStatus.Pending)
+        );
+
+        if (isDoubleBooked) {
+            setBookingError("This time slot is already booked for the selected doctor. Please choose another time.");
+        } else {
+            setBookingError(null);
+        }
+    } else {
+        // Clear error if not all fields are filled
+        setBookingError(null);
+    }
+  }, [formData.doctorId, formData.date, formData.time, doctors, appointments, appointment]);
+
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -42,6 +76,7 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ appointment, patients
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (bookingError) return;
     if (appointment) {
       onSave({ ...appointment, ...formData });
     } else {
@@ -93,10 +128,15 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ appointment, patients
           <option value="">Select Doctor</option>
           {doctors.map(d => {
             const { avgRating, reviewCount } = getDoctorAverageRating(d.id);
-            const ratingText = reviewCount > 0 ? `⭐ ${avgRating.toFixed(1)} (${reviewCount} reviews)` : 'No reviews yet';
+            const ratingText = reviewCount > 0 ? `⭐ ${avgRating.toFixed(1)} (${reviewCount} review${reviewCount !== 1 ? 's' : ''})` : 'No reviews yet';
             return <option key={d.id} value={d.id}>{d.name} ({d.specialty}) - {ratingText}</option>
           })}
         </select>
+        {doctorAvailability && (
+            <p className="text-xs text-gray-500 mt-1 pl-1">
+                Availability: {doctorAvailability}
+            </p>
+        )}
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
@@ -125,6 +165,9 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ appointment, patients
           />
         </div>
       </div>
+      {bookingError && (
+        <p className="text-sm text-red-600 -mt-2 text-center">{bookingError}</p>
+      )}
       <div>
         <label htmlFor="reason" className="block text-sm font-medium text-gray-700">Reason for Visit</label>
         <textarea
@@ -147,7 +190,8 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ appointment, patients
         </button>
         <button
           type="submit"
-          className="inline-flex justify-center py-2 px-4 border border-transparent shadow-md text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-lg active:scale-95"
+          disabled={!!bookingError}
+          className="inline-flex justify-center py-2 px-4 border border-transparent shadow-md text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-lg active:scale-95 disabled:bg-primary-400 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none"
         >
           Save Appointment
         </button>
