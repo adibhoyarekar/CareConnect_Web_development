@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Appointment, Doctor, Patient, AppointmentStatus, Review } from '../types';
+import Spinner from './Spinner';
 
 interface AppointmentFormProps {
   appointment?: Appointment | null;
@@ -7,7 +8,7 @@ interface AppointmentFormProps {
   doctors: Doctor[];
   appointments: Appointment[];
   reviews: Review[];
-  onSave: (appointment: Omit<Appointment, 'id'> | Appointment) => void;
+  onSave: (appointment: Omit<Appointment, 'id'> | Appointment) => Promise<void>;
   onClose: () => void;
   currentUserId: string;
   currentUserRole: string;
@@ -24,6 +25,7 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ appointment, patients
   });
   const [doctorAvailability, setDoctorAvailability] = useState<string | null>(null);
   const [bookingError, setBookingError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (appointment) {
@@ -74,14 +76,17 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ appointment, patients
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (bookingError) return;
+    if (bookingError || isSaving) return;
+    setIsSaving(true);
     if (appointment) {
-      onSave({ ...appointment, ...formData });
+      await onSave({ ...appointment, ...formData });
     } else {
-      onSave({ ...formData, id: `apt-${Date.now()}` });
+      await onSave({ ...formData, id: `apt-${Date.now()}` });
     }
+    // The parent component will handle closing the modal, so we don't need to call setIsSaving(false)
+    // as this component instance will be destroyed.
   };
   
   const inputBaseClasses = "mt-1 block w-full rounded-md shadow-sm sm:text-sm bg-gray-100 border-gray-300 text-gray-900 focus:ring-primary-500 focus:border-primary-500";
@@ -190,10 +195,10 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ appointment, patients
         </button>
         <button
           type="submit"
-          disabled={!!bookingError}
+          disabled={!!bookingError || isSaving}
           className="inline-flex justify-center py-2 px-4 border border-transparent shadow-md text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-lg active:scale-95 disabled:bg-primary-400 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none"
         >
-          Save Appointment
+          {isSaving ? <Spinner size="sm" color="text-white" /> : 'Save Appointment' }
         </button>
       </div>
     </form>

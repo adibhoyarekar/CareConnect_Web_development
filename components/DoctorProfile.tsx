@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
 import { Doctor } from '../types';
+import Spinner from './Spinner';
 
 interface DoctorProfileProps {
   doctor: Doctor;
-  onSave: (updatedDoctor: Doctor) => void;
+  onSave: (updatedDoctor: Doctor) => Promise<void>;
   onBack: () => void;
 }
 
 const DoctorProfile: React.FC<DoctorProfileProps> = ({ doctor, onSave, onBack }) => {
     const [isEditing, setIsEditing] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
     const [formData, setFormData] = useState({
         name: doctor.name,
         email: doctor.email,
@@ -27,14 +29,16 @@ const DoctorProfile: React.FC<DoctorProfileProps> = ({ doctor, onSave, onBack })
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
-    const handleSave = (e: React.FormEvent) => {
+    const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
+        setIsSaving(true);
         const updatedDoctor: Doctor = {
             ...doctor,
             ...formData,
             fees: Number(formData.fees),
         };
-        onSave(updatedDoctor);
+        await onSave(updatedDoctor);
+        setIsSaving(false);
         setIsEditing(false);
     };
 
@@ -117,8 +121,8 @@ const DoctorProfile: React.FC<DoctorProfileProps> = ({ doctor, onSave, onBack })
                                 <button type="button" onClick={handleCancel} className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500">
                                     Cancel
                                 </button>
-                                <button type="submit" className="inline-flex justify-center py-2 px-4 border border-transparent shadow-md text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-lg active:scale-95">
-                                    Save Changes
+                                <button type="submit" disabled={isSaving} className="inline-flex justify-center py-2 px-4 border border-transparent shadow-md text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-lg active:scale-95 disabled:opacity-75">
+                                    {isSaving ? <Spinner size="sm" color="text-white" /> : 'Save Changes'}
                                 </button>
                             </>
                         )}

@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Doctor } from '../types';
+import Spinner from './Spinner';
 
 interface DoctorOnboardingProps {
   doctor: Doctor;
-  onSave: (updatedDoctor: Doctor) => void;
+  onSave: (updatedDoctor: Doctor) => Promise<void>;
 }
 
 const DoctorOnboarding: React.FC<DoctorOnboardingProps> = ({ doctor, onSave }) => {
@@ -13,6 +14,7 @@ const DoctorOnboarding: React.FC<DoctorOnboardingProps> = ({ doctor, onSave }) =
         specialty: doctor.specialty || '',
         availableTime: doctor.availableTime || '',
     });
+    const [isSaving, setIsSaving] = useState(false);
     
     const inputBaseClasses = "mt-1 block w-full rounded-md shadow-sm sm:text-sm bg-gray-100 border-gray-300 text-gray-900 focus:ring-primary-500 focus:border-primary-500 py-2 px-3";
 
@@ -21,14 +23,16 @@ const DoctorOnboarding: React.FC<DoctorOnboardingProps> = ({ doctor, onSave }) =
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setIsSaving(true);
         const updatedDoctor = {
             ...doctor,
             ...formData,
             profileComplete: true,
         };
-        onSave(updatedDoctor);
+        await onSave(updatedDoctor);
+        // Component will unmount, no need to setIsSaving(false)
     };
     
     return (
@@ -88,9 +92,10 @@ const DoctorOnboarding: React.FC<DoctorOnboardingProps> = ({ doctor, onSave }) =
                 <div className="flex justify-end pt-4">
                     <button
                         type="submit"
-                        className="inline-flex justify-center py-2 px-6 border border-transparent shadow-md text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-lg active:scale-95"
+                        disabled={isSaving}
+                        className="inline-flex justify-center py-2 px-6 border border-transparent shadow-md text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-lg active:scale-95 disabled:opacity-75"
                     >
-                        Save and Continue
+                        {isSaving ? <Spinner size="sm" color="text-white" /> : 'Save and Continue'}
                     </button>
                 </div>
             </form>

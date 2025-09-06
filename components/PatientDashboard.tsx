@@ -13,9 +13,9 @@ interface PatientDashboardProps {
   doctors: Doctor[];
   medicalRecords: MedicalRecord[];
   reviews: Review[];
-  addAppointment: (appointment: Omit<Appointment, 'id'>) => void;
-  addMedicalRecord: (record: Omit<MedicalRecord, 'id'>) => void;
-  addReview: (review: Omit<Review, 'id'>) => void;
+  addAppointment: (appointment: Omit<Appointment, 'id'>) => Promise<void>;
+  addMedicalRecord: (record: Omit<MedicalRecord, 'id'>) => Promise<void>;
+  addReview: (review: Omit<Review, 'id'>) => Promise<void>;
 }
 
 const PatientDashboard: React.FC<PatientDashboardProps> = ({ patient, appointments, patients, doctors, medicalRecords, reviews, addAppointment, addMedicalRecord, addReview }) => {
@@ -35,13 +35,13 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ patient, appointmen
   const doctorUploads = patientMedicalRecords.filter(r => r.uploadedBy === 'doctor');
 
 
-  const handleSaveAppointment = (appointmentData: Omit<Appointment, 'id'> | Appointment) => {
-    addAppointment(appointmentData);
+  const handleSaveAppointment = async (appointmentData: Omit<Appointment, 'id'> | Appointment) => {
+    await addAppointment(appointmentData);
     setIsModalOpen(false);
   };
 
-  const handleSaveMedicalRecord = (recordData: Omit<MedicalRecord, 'id' | 'patientId' | 'uploadedBy' | 'uploaderId'>) => {
-    addMedicalRecord({
+  const handleSaveMedicalRecord = async (recordData: Omit<MedicalRecord, 'id' | 'patientId' | 'uploadedBy' | 'uploaderId'>) => {
+    await addMedicalRecord({
         ...recordData,
         patientId: patient.id,
         uploadedBy: 'patient',
@@ -58,8 +58,8 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ patient, appointmen
     setIsReviewModalOpen(true);
   }
 
-  const handleSaveReview = (reviewData: Omit<Review, 'id'>) => {
-    addReview(reviewData);
+  const handleSaveReview = async (reviewData: Omit<Review, 'id'>) => {
+    await addReview(reviewData);
     setIsReviewModalOpen(false);
     setReviewingAppointment(null);
   }

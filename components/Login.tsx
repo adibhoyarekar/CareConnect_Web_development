@@ -3,15 +3,17 @@ import { User, Role, MockGoogleAccount } from '../types';
 import GoogleAccountChooserModal from './SocialLoginModal';
 import GoogleConsentModal from './GoogleConsentModal';
 import FacebookLoginModal from './FacebookLoginModal';
+import Spinner from './Spinner';
 
 interface LoginProps {
   onSignIn: (credentials: {email: string, password: string}) => void;
   onSignUp: (details: Omit<User, 'id'>) => void;
   onSocialSignUp: (role: Role, provider: 'Google' | 'Facebook', account: {name: string, email: string}) => void;
   error: string | null;
+  isLoading: boolean;
 }
 
-const Login: React.FC<LoginProps> = ({ onSignIn, onSignUp, onSocialSignUp, error }) => {
+const Login: React.FC<LoginProps> = ({ onSignIn, onSignUp, onSocialSignUp, error, isLoading }) => {
   const [isSignUp, setIsSignUp] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -77,29 +79,29 @@ const Login: React.FC<LoginProps> = ({ onSignIn, onSignUp, onSocialSignUp, error
           {isSignUp && (
             <div>
               <label htmlFor="name" className="block text-sm font-medium text-gray-700">Full Name</label>
-              <input type="text" name="name" id="name" value={formData.name} onChange={handleChange} className={inputBaseClasses} required />
+              <input type="text" name="name" id="name" value={formData.name} onChange={handleChange} className={inputBaseClasses} required disabled={isLoading} />
             </div>
           )}
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email Address</label>
-            <input type="email" name="email" id="email" value={formData.email} onChange={handleChange} className={inputBaseClasses} required />
+            <input type="email" name="email" id="email" value={formData.email} onChange={handleChange} className={inputBaseClasses} required disabled={isLoading} />
           </div>
           <div>
             <label htmlFor="password" className="block text-sm font-medium text-gray-700">Password</label>
-            <input type="password" name="password" id="password" value={formData.password} onChange={handleChange} className={inputBaseClasses} required />
+            <input type="password" name="password" id="password" value={formData.password} onChange={handleChange} className={inputBaseClasses} required disabled={isLoading} />
           </div>
           {isSignUp && (
             <div>
               <label htmlFor="role" className="block text-sm font-medium text-gray-700">I am a...</label>
-              <select name="role" id="role" value={formData.role} onChange={handleChange} className={inputBaseClasses} required>
+              <select name="role" id="role" value={formData.role} onChange={handleChange} className={inputBaseClasses} required disabled={isLoading}>
                 {Object.values(Role).map(role => <option key={role} value={role}>{role}</option>)}
               </select>
             </div>
           )}
           {error && <p className="text-sm text-red-600 text-center">{error}</p>}
           <div>
-            <button type="submit" className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-md text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-lg active:scale-95">
-              {isSignUp ? 'Sign Up' : 'Sign In'}
+            <button type="submit" disabled={isLoading} className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-md text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-lg active:scale-95 disabled:opacity-75 disabled:cursor-not-allowed">
+              {isLoading ? <Spinner size="sm" color="text-white" /> : (isSignUp ? 'Sign Up' : 'Sign In')}
             </button>
           </div>
         </form>
@@ -111,7 +113,7 @@ const Login: React.FC<LoginProps> = ({ onSignIn, onSignUp, onSocialSignUp, error
         </div>
         
         <div className="grid grid-cols-2 gap-4">
-            <button onClick={() => setActiveSocialModal('Google')} className="w-full inline-flex justify-center items-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 transition-all duration-300 ease-in-out transform hover:scale-105 active:scale-95">
+            <button onClick={() => setActiveSocialModal('Google')} disabled={isLoading} className="w-full inline-flex justify-center items-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 transition-all duration-300 ease-in-out transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
                 <svg className="w-5 h-5 mr-2" aria-hidden="true" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
                     <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
@@ -120,7 +122,7 @@ const Login: React.FC<LoginProps> = ({ onSignIn, onSignUp, onSocialSignUp, error
                 </svg>
                 Google
             </button>
-            <button onClick={() => setActiveSocialModal('Facebook')} className="w-full inline-flex justify-center items-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 transition-all duration-300 ease-in-out transform hover:scale-105 active:scale-95">
+            <button onClick={() => setActiveSocialModal('Facebook')} disabled={isLoading} className="w-full inline-flex justify-center items-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 transition-all duration-300 ease-in-out transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
                  <svg className="w-5 h-5 mr-2" aria-hidden="true" fill="#1877F2" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M20 10c0-5.523-4.477-10-10-10S0 4.477 0 10c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V10h2.54V7.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V10h2.773l-.443 2.89h-2.33v6.988C16.343 19.128 20 14.991 20 10z" clipRule="evenodd" />
                 </svg>
@@ -130,7 +132,7 @@ const Login: React.FC<LoginProps> = ({ onSignIn, onSignUp, onSocialSignUp, error
 
 
         <div className="mt-6 text-center">
-          <button onClick={() => setIsSignUp(!isSignUp)} className="text-sm font-medium text-primary-600 hover:text-primary-500">
+          <button onClick={() => setIsSignUp(!isSignUp)} disabled={isLoading} className="text-sm font-medium text-primary-600 hover:text-primary-500 disabled:opacity-50 disabled:cursor-not-allowed">
             {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
           </button>
         </div>

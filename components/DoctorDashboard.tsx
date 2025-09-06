@@ -4,6 +4,7 @@ import AppointmentTable from './AppointmentTable';
 import Modal from './Modal';
 import { exportToExcel } from '../utils/excelExport';
 import MedicalRecordUploadForm from './MedicalRecordUploadForm';
+import Spinner from './Spinner';
 
 interface DoctorDashboardProps {
   doctor: Doctor;
@@ -12,23 +13,26 @@ interface DoctorDashboardProps {
   doctors: Doctor[];
   medicalRecords: MedicalRecord[];
   reviews: Review[];
-  updateAppointment: (appointment: Appointment) => void;
-  updateDoctorProfile: (doctor: Doctor) => void;
-  addMedicalRecord: (record: Omit<MedicalRecord, 'id'>) => void;
+  updateAppointment: (appointment: Appointment) => Promise<void>;
+  updateDoctorProfile: (doctor: Doctor) => Promise<void>;
+  addMedicalRecord: (record: Omit<MedicalRecord, 'id'>) => Promise<void>;
 }
 
-const DoctorProfileForm: React.FC<{doctor: Doctor, onSave: (doctor: Doctor) => void, onClose: () => void}> = ({doctor, onSave, onClose}) => {
+const DoctorProfileForm: React.FC<{doctor: Doctor, onSave: (doctor: Doctor) => Promise<void>, onClose: () => void}> = ({doctor, onSave, onClose}) => {
     const [formData, setFormData] = useState({
         hospitalName: doctor.hospitalName || '',
         address: doctor.address || '',
         specialty: doctor.specialty || '',
         availableTime: doctor.availableTime || '',
     });
+    const [isSaving, setIsSaving] = useState(false);
     const inputBaseClasses = "mt-1 block w-full rounded-md shadow-sm sm:text-sm bg-gray-100 border-gray-300 text-gray-900 focus:ring-primary-500 focus:border-primary-500 py-2 px-3";
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => setFormData({...formData, [e.target.name]: e.target.value});
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        onSave({...doctor, ...formData});
+        setIsSaving(true);
+        await onSave({...doctor, ...formData});
+        setIsSaving(false);
         onClose();
     };
     return (
@@ -51,7 +55,9 @@ const DoctorProfileForm: React.FC<{doctor: Doctor, onSave: (doctor: Doctor) => v
             </div>
             <div className="flex justify-end space-x-3 pt-4">
                 <button type="button" onClick={onClose} className="bg-gray-200 py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-300 ease-in-out transform hover:scale-105 active:scale-95">Cancel</button>
-                <button type="submit" className="inline-flex justify-center py-2 px-4 border border-transparent shadow-md text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-lg active:scale-95">Save Changes</button>
+                <button type="submit" disabled={isSaving} className="inline-flex justify-center py-2 px-4 border border-transparent shadow-md text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-lg active:scale-95 disabled:opacity-75">
+                    {isSaving ? <Spinner size="sm" color="text-white" /> : 'Save Changes'}
+                </button>
             </div>
         </form>
     )
@@ -98,9 +104,9 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ doctor, appointments,
     }
   };
 
-  const handleSaveMedicalRecord = (recordData: Omit<MedicalRecord, 'id' | 'patientId' | 'uploadedBy' | 'uploaderId'>) => {
+  const handleSaveMedicalRecord = async (recordData: Omit<MedicalRecord, 'id' | 'patientId' | 'uploadedBy' | 'uploaderId'>) => {
     if (selectedPatient) {
-        addMedicalRecord({
+        await addMedicalRecord({
             ...recordData,
             patientId: selectedPatient.id,
             uploadedBy: 'doctor',

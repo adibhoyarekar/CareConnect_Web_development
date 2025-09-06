@@ -10,8 +10,8 @@ interface ReceptionistDashboardProps {
   patients: Patient[];
   doctors: Doctor[];
   reviews: Review[];
-  addAppointment: (appointment: Omit<Appointment, 'id'>) => void;
-  updateAppointment: (appointment: Appointment) => void;
+  addAppointment: (appointment: Omit<Appointment, 'id'>) => Promise<void>;
+  updateAppointment: (appointment: Appointment) => Promise<void>;
 }
 
 const ReceptionistDashboard: React.FC<ReceptionistDashboardProps> = ({ user, appointments, patients, doctors, reviews, addAppointment, updateAppointment }) => {
@@ -57,11 +57,11 @@ const ReceptionistDashboard: React.FC<ReceptionistDashboardProps> = ({ user, app
     setIsModalOpen(true);
   };
 
-  const handleSaveAppointment = (appointmentData: Omit<Appointment, 'id'> | Appointment) => {
+  const handleSaveAppointment = async (appointmentData: Omit<Appointment, 'id'> | Appointment) => {
     if ('id' in appointmentData && editingAppointment) {
-      updateAppointment(appointmentData as Appointment);
+      await updateAppointment(appointmentData as Appointment);
     } else {
-      addAppointment(appointmentData);
+      await addAppointment(appointmentData);
     }
     setIsModalOpen(false);
     setEditingAppointment(null);

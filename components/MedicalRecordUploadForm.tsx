@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { MedicalRecord } from '../types';
+import Spinner from './Spinner';
 
 interface MedicalRecordUploadFormProps {
-  onSave: (recordData: Omit<MedicalRecord, 'id' | 'patientId' | 'uploadedBy' | 'uploaderId' | 'dateUploaded' | 'fileUrl' | 'fileType'>) => void;
+  onSave: (recordData: Omit<MedicalRecord, 'id' | 'patientId' | 'uploadedBy' | 'uploaderId' | 'dateUploaded' | 'fileUrl' | 'fileType'>) => Promise<void>;
   onClose: () => void;
 }
 
@@ -10,13 +11,17 @@ const MedicalRecordUploadForm: React.FC<MedicalRecordUploadFormProps> = ({ onSav
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [file, setFile] = useState<File | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!title || isSaving) return;
+
+    setIsSaving(true);
     // In a real app, you would handle file upload to a server here.
     // For this simulation, we'll just pass the text data.
-    if (!title) return;
-    onSave({ title, description });
+    await onSave({ title, description });
+    // Parent component handles closing, no need to setIsSaving(false)
   };
   
   const inputBaseClasses = "mt-1 block w-full rounded-md shadow-sm sm:text-sm bg-gray-100 border-gray-300 text-gray-900 focus:ring-primary-500 focus:border-primary-500";
@@ -67,9 +72,10 @@ const MedicalRecordUploadForm: React.FC<MedicalRecordUploadFormProps> = ({ onSav
         </button>
         <button
           type="submit"
-          className="inline-flex justify-center py-2 px-4 border border-transparent shadow-md text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-lg active:scale-95"
+          disabled={isSaving}
+          className="inline-flex justify-center py-2 px-4 border border-transparent shadow-md text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-lg active:scale-95 disabled:opacity-75"
         >
-          Save Record
+          {isSaving ? <Spinner size="sm" color="text-white" /> : 'Save Record'}
         </button>
       </div>
     </form>

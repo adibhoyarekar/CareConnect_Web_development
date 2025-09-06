@@ -3,9 +3,11 @@
   "version": "1.0.0",
   "description": "A comprehensive clinic appointment management system for doctors, receptionists, and patients.",
   "scripts": {
-    "build": "esbuild index.tsx --bundle --outfile=dist/index.js --jsx=automatic"
+    "dev": "concurrently \"npm:build -- --watch\" \"cd backend && npm install && npm run dev\"",
+    "build": "esbuild index.tsx --bundle --outfile=index.js --jsx=automatic"
   },
   "devDependencies": {
+    "concurrently": "^8.2.2",
     "esbuild": "^0.23.0"
   }
 }

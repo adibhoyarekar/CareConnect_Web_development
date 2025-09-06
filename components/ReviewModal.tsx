@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { Appointment, Doctor, Patient, Review } from '../types';
 import Modal from './Modal';
+import Spinner from './Spinner';
 
 interface ReviewModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (review: Omit<Review, 'id'>) => void;
+  onSubmit: (review: Omit<Review, 'id'>) => Promise<void>;
   appointment: Appointment;
   patient: Patient;
   doctor: Doctor;
@@ -14,14 +15,18 @@ interface ReviewModalProps {
 const ReviewModal: React.FC<ReviewModalProps> = ({ isOpen, onClose, onSubmit, appointment, patient, doctor }) => {
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (rating === 0) {
       alert('Please select a rating.');
       return;
     }
-    onSubmit({
+    if (isSubmitting) return;
+
+    setIsSubmitting(true);
+    await onSubmit({
       patientId: patient.id,
       doctorId: doctor.id,
       appointmentId: appointment.id,
@@ -29,6 +34,7 @@ const ReviewModal: React.FC<ReviewModalProps> = ({ isOpen, onClose, onSubmit, ap
       comment,
       date: new Date().toISOString(),
     });
+    // Parent handles closing modal, component will unmount
   };
 
   return (
@@ -80,9 +86,10 @@ const ReviewModal: React.FC<ReviewModalProps> = ({ isOpen, onClose, onSubmit, ap
           </button>
           <button
             type="submit"
-            className="inline-flex justify-center py-2 px-4 border border-transparent shadow-md text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-lg active:scale-95"
+            disabled={isSubmitting}
+            className="inline-flex justify-center py-2 px-4 border border-transparent shadow-md text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-lg active:scale-95 disabled:opacity-75"
           >
-            Submit Review
+            {isSubmitting ? <Spinner size="sm" color="text-white" /> : 'Submit Review'}
           </button>
         </div>
       </form>
