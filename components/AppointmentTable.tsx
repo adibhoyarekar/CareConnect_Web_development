@@ -8,28 +8,49 @@ interface AppointmentTableProps {
   reviews?: Review[];
   currentUserRole: Role;
   onStatusChange?: (id: string, status: AppointmentStatus) => void;
-  onEdit?: (appointment: Appointment) => void;
-  onCall?: (phone: string) => void;
-  onLeaveReview?: (appointment: Appointment) => void;
   onPatientClick?: (patientId: string) => void;
+  onLeaveReview?: (appointment: Appointment) => void;
+  onEditAppointment?: (appointment: Appointment) => void;
+  onDeleteAppointment?: (id: string) => void;
 }
 
-const AppointmentTable: React.FC<AppointmentTableProps> = ({ appointments, patients, doctors, reviews, currentUserRole, onStatusChange, onEdit, onCall, onLeaveReview, onPatientClick }) => {
-  const getStatusColor = (status: AppointmentStatus) => {
-    switch (status) {
-      case AppointmentStatus.Confirmed: return 'bg-green-100 text-green-800';
-      case AppointmentStatus.Completed: return 'bg-blue-100 text-blue-800';
-      case AppointmentStatus.Pending: return 'bg-yellow-100 text-yellow-800';
-      case AppointmentStatus.Cancelled: return 'bg-gray-100 text-gray-800';
-      case AppointmentStatus.Rejected: return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
+const AppointmentTable: React.FC<AppointmentTableProps> = ({
+  appointments,
+  patients,
+  doctors,
+  reviews,
+  currentUserRole,
+  onStatusChange,
+  onPatientClick,
+  onLeaveReview,
+  onEditAppointment,
+  onDeleteAppointment,
+}) => {
+
+  const getPatientName = (id: string) => patients.find(p => p.id === id)?.name || 'N/A';
+  const getDoctorName = (id: string) => doctors.find(d => d.id === id)?.name || 'N/A';
+
+  const renderStatusBadge = (status: AppointmentStatus) => {
+    const statusColors: { [key in AppointmentStatus]: string } = {
+      [AppointmentStatus.Pending]: 'bg-yellow-100 text-yellow-800',
+      [AppointmentStatus.Confirmed]: 'bg-green-100 text-green-800',
+      [AppointmentStatus.Completed]: 'bg-blue-100 text-blue-800',
+      [AppointmentStatus.Cancelled]: 'bg-red-100 text-red-800',
+      [AppointmentStatus.Rejected]: 'bg-gray-100 text-gray-800',
+    };
+    return (
+      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColors[status]}`}>
+        {status}
+      </span>
+    );
   };
-
-  const buttonBaseClasses = "font-medium transition-all duration-200 ease-in-out transform hover:scale-110";
-
+  
   const hasReview = (appointmentId: string) => {
-    return reviews?.some(review => review.appointmentId === appointmentId);
+    return reviews?.some(r => r.appointmentId === appointmentId);
+  }
+
+  if (appointments.length === 0) {
+    return <p className="text-center text-gray-500 py-8">No appointments found.</p>;
   }
 
   return (
@@ -37,79 +58,70 @@ const AppointmentTable: React.FC<AppointmentTableProps> = ({ appointments, patie
       <table className="min-w-full divide-y divide-gray-200">
         <thead className="bg-gray-50">
           <tr>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Patient</th>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Doctor</th>
+            {currentUserRole !== Role.Patient && <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Patient</th>}
+            {currentUserRole !== Role.Doctor && <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Doctor</th>}
             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date & Time</th>
             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reason</th>
             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-            <th scope="col" className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
+            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
           </tr>
         </thead>
         <tbody className="bg-white divide-y divide-gray-200">
-          {appointments.length === 0 ? (
-            <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-500">No appointments found.</td></tr>
-          ) : appointments.map((appt) => {
-            const patient = patients.find(p => p.id === appt.patientId);
-            const doctor = doctors.find(d => d.id === appt.doctorId);
-            return (
-              <tr key={appt.id} className="hover:bg-gray-50 transition-colors">
+          {appointments.map((appt) => (
+            <tr key={appt.id}>
+              {currentUserRole !== Role.Patient && (
                 <td className="px-6 py-4 whitespace-nowrap">
-                  {currentUserRole !== Role.Patient && onPatientClick && patient ? (
-                     <button onClick={() => onPatientClick(patient.id)} className="text-sm font-medium text-primary-600 hover:text-primary-800 text-left">
-                        {patient.name}
-                     </button>
-                  ) : (
-                     <div className="text-sm font-medium text-gray-900">{patient?.name}</div>
-                  )}
-                  <div className="text-sm text-gray-500">{patient?.contact}</div>
+                    <button onClick={() => onPatientClick && onPatientClick(appt.patientId)} className="text-sm font-medium text-primary-600 hover:underline disabled:text-gray-500 disabled:no-underline" disabled={!onPatientClick}>
+                        {getPatientName(appt.patientId)}
+                    </button>
                 </td>
+              )}
+              {currentUserRole !== Role.Doctor && (
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm font-medium text-gray-900">{doctor?.name}</div>
-                  <div className="text-sm text-gray-500">{doctor?.specialty}</div>
+                  <div className="text-sm text-gray-900">{getDoctorName(appt.doctorId)}</div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-gray-900">{appt.date}</div>
-                  <div className="text-sm text-gray-500">{appt.time}</div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 max-w-xs truncate">{appt.reason}</td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(appt.status)}`}>
-                    {appt.status}
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                  {currentUserRole === Role.Patient && onLeaveReview && appt.status === AppointmentStatus.Completed && (
-                    !hasReview(appt.id) ? (
-                      <button onClick={() => onLeaveReview(appt)} className={`${buttonBaseClasses} text-primary-600 hover:text-primary-800`}>Leave a Review</button>
+              )}
+              <td className="px-6 py-4 whitespace-nowrap">
+                <div className="text-sm text-gray-900">{new Date(appt.date).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })}</div>
+                <div className="text-sm text-gray-500">{appt.time}</div>
+              </td>
+              <td className="px-6 py-4">
+                <div className="text-sm text-gray-900 truncate max-w-xs">{appt.reason}</div>
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap">
+                {currentUserRole === Role.Doctor || currentUserRole === Role.Receptionist ? (
+                    <select
+                        value={appt.status}
+                        onChange={(e) => onStatusChange && onStatusChange(appt.id, e.target.value as AppointmentStatus)}
+                        className="text-xs rounded-md border-gray-300 shadow-sm focus:border-primary-300 focus:ring focus:ring-primary-200 focus:ring-opacity-50 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                        disabled={appt.status === AppointmentStatus.Completed || appt.status === AppointmentStatus.Cancelled || !onStatusChange}
+                    >
+                        {Object.values(AppointmentStatus).map(status => <option key={status} value={status}>{status}</option>)}
+                    </select>
+                ) : (
+                    renderStatusBadge(appt.status)
+                )}
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                {currentUserRole === Role.Patient && appt.status === AppointmentStatus.Completed && onLeaveReview && (
+                    hasReview(appt.id) ? (
+                        <span className="text-sm text-gray-500 italic">Reviewed</span>
                     ) : (
-                      <span className="text-sm text-green-600 italic">Review Submitted</span>
+                        <button onClick={() => onLeaveReview(appt)} className="text-primary-600 hover:text-primary-900">Leave Review</button>
                     )
-                  )}
-                  {currentUserRole === Role.Doctor && onStatusChange && (
-                    <div className="flex space-x-4">
-                       {appt.status === AppointmentStatus.Pending && 
-                        <>
-                          <button onClick={() => onStatusChange(appt.id, AppointmentStatus.Confirmed)} className={`${buttonBaseClasses} text-green-600 hover:text-green-800`}>Accept</button>
-                          <button onClick={() => onStatusChange(appt.id, AppointmentStatus.Rejected)} className={`${buttonBaseClasses} text-red-600 hover:text-red-800`}>Reject</button>
-                        </>
-                      }
-                      {appt.status === AppointmentStatus.Confirmed && 
-                        <button onClick={() => onStatusChange(appt.id, AppointmentStatus.Completed)} className={`${buttonBaseClasses} text-blue-600 hover:text-blue-800`}>Complete</button>
-                      }
+                )}
+                {currentUserRole === Role.Receptionist && onEditAppointment && onDeleteAppointment && (
+                    <div className="flex space-x-2">
+                        <button onClick={() => onEditAppointment(appt)} className="text-primary-600 hover:text-primary-900">Edit</button>
+                        <button onClick={() => onDeleteAppointment(appt.id)} className="text-red-600 hover:text-red-900">Delete</button>
                     </div>
-                  )}
-                  {currentUserRole === Role.Receptionist && onEdit && onStatusChange && (
-                    <div className="flex justify-end space-x-4">
-                        <button onClick={() => onEdit(appt)} className={`${buttonBaseClasses} text-primary-600 hover:text-primary-800`}>Reschedule</button>
-                        {appt.status !== AppointmentStatus.Cancelled &&
-                            <button onClick={() => onStatusChange(appt.id, AppointmentStatus.Cancelled)} className={`${buttonBaseClasses} text-red-600 hover:text-red-800`}>Cancel</button>
-                        }
-                    </div>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
+                )}
+                 {(currentUserRole === Role.Doctor) && (
+                    <span className="text-sm text-gray-400">—</span>
+                )}
+              </td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>

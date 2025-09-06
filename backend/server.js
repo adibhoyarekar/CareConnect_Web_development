@@ -176,6 +176,20 @@ app.put('/api/appointments/:id', async (req, res) => {
     res.json({ updatedAppointment: updatedAppointmentData, notifications: db.data.notifications });
 });
 
+// FIX: Add a route to handle appointment deletion
+app.delete('/api/appointments/:id', async (req, res) => {
+    const { id } = req.params;
+    const index = db.data.appointments.findIndex(a => a.id === id);
+
+    if (index !== -1) {
+        db.data.appointments.splice(index, 1);
+        await db.write();
+        res.status(200).json({ message: 'Appointment deleted successfully' });
+    } else {
+        res.status(404).json({ message: 'Appointment not found' });
+    }
+});
+
 // --- PROFILES ---
 app.put('/api/doctors/:id', async (req, res) => {
     const { id } = req.params;

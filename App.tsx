@@ -1,377 +1,358 @@
 import React, { useCallback, useState, useEffect } from 'react';
-import { User, Role, Appointment, Patient, Doctor, MedicalRecord, Review, Notification } from './types';
+import { Appointment, Doctor, Patient, Role, User, MedicalRecord, Review, Notification } from './types';
 import Login from './components/Login';
-import Header from './components/Header';
-import DoctorDashboard from './components/DoctorDashboard';
 import PatientDashboard from './components/PatientDashboard';
+import DoctorDashboard from './components/DoctorDashboard';
 import ReceptionistDashboard from './components/ReceptionistDashboard';
-import DoctorOnboarding from './components/DoctorOnboarding';
+import Header from './components/Header';
 import PatientOnboarding from './components/PatientOnboarding';
-import DoctorProfile from './components/DoctorProfile';
-import PatientProfile from './components/PatientProfile';
-import ReceptionistProfile from './components/ReceptionistProfile';
+import DoctorOnboarding from './components/DoctorOnboarding';
 import Spinner from './components/Spinner';
+import PatientProfile from './components/PatientProfile';
+import DoctorProfile from './components/DoctorProfile';
+import ReceptionistProfile from './components/ReceptionistProfile';
 
-// IMPORTANT: Replace this URL with your actual Render backend URL
 const API_BASE_URL = 'https://careconnect-backend-45u6.onrender.com/api';
 
 const App: React.FC = () => {
-  const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    const savedUser = localStorage.getItem('currentUser');
+  const [currentUser, setCurrentUser] = useState<User | Doctor | Patient | null>(() => {
+    const savedUser = localStorage.getItem('careconnect_user');
     return savedUser ? JSON.parse(savedUser) : null;
   });
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [isAuthLoading, setIsAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [activeView, setActiveView] = useState<'dashboard' | 'profile'>('dashboard');
   
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [patients, setPatients] = useState<Patient[]>([]);
+  // Data states
   const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [patients, setPatients] = useState<Patient[]>([]);
   const [receptionists, setReceptionists] = useState<User[]>([]);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [medicalRecords, setMedicalRecords] = useState<MedicalRecord[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  
-  const [loginError, setLoginError] = useState<string | null>(null);
-  const [view, setView] = useState<'dashboard' | 'profile'>('dashboard');
-  const [isLoading, setIsLoading] = useState(true);
-  const [isAuthLoading, setIsAuthLoading] = useState(false);
 
   const fetchData = useCallback(async () => {
-    if (!currentUser) {
-        setIsLoading(false);
-        return;
-    }
     try {
-        setIsLoading(true);
-        const response = await fetch(`${API_BASE_URL}/data`);
-        if (!response.ok) throw new Error('Failed to fetch data');
-        const data = await response.json();
-        setAppointments(data.appointments);
-        setPatients(data.patients);
-        setDoctors(data.doctors);
-        setReceptionists(data.receptionists);
-        setMedicalRecords(data.medicalRecords);
-        setReviews(data.reviews);
-        setNotifications(data.notifications);
-        
-        // Trigger reminder generation on the server
-        await fetch(`${API_BASE_URL}/generate-reminders`, { method: 'POST' });
-
+      const response = await fetch(`${API_BASE_URL}/data`);
+      if (!response.ok) throw new Error('Failed to fetch data');
+      const data = await response.json();
+      setDoctors(data.doctors);
+      setPatients(data.patients);
+      setReceptionists(data.receptionists);
+      setAppointments(data.appointments);
+      setMedicalRecords(data.medicalRecords);
+      setReviews(data.reviews);
+      setNotifications(data.notifications);
     } catch (error) {
-        console.error("Error fetching data:", error);
-        setLoginError("Could not connect to the server.");
+      console.error("Fetch data error:", error);
+      setAuthError('Could not connect to the server. Please try again later.');
     } finally {
-        setIsLoading(false);
+      setIsLoading(false);
     }
-  }, [currentUser]);
+  }, []);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  const handleLoginSuccess = (user: User) => {
-      setLoginError(null);
-      localStorage.setItem('currentUser', JSON.stringify(user));
-      setView('dashboard');
-      setCurrentUser(user);
-  };
+  // Generate reminders on initial load
+  useEffect(() => {
+    const generateReminders = async () => {
+      try {
+        await fetch(`${API_BASE_URL}/generate-reminders`, { method: 'POST' });
+        fetchData(); // Refetch data to get new reminders
+      } catch (error) {
+        console.error("Failed to generate reminders:", error);
+      }
+    };
+    generateReminders();
+  }, []);
+
 
   const handleSignIn = async (credentials: {email: string, password: string}) => {
     setIsAuthLoading(true);
-    setLoginError(null);
+    setAuthError(null);
     try {
       const response = await fetch(`${API_BASE_URL}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(credentials),
       });
-      const data = await response.json();
-      if (response.ok) {
-        handleLoginSuccess(data);
-      } else {
-        setLoginError(data.message || 'Invalid email or password.');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Login failed');
       }
-    } catch (error) {
-       setLoginError('Failed to connect to the server.');
+      const user = await response.json();
+      setCurrentUser(user);
+      localStorage.setItem('careconnect_user', JSON.stringify(user));
+    } catch (error: any) {
+      setAuthError(error.message);
+    } finally {
+      setIsAuthLoading(false);
+    }
+  };
+
+  const handleSignUp = async (details: Omit<User, 'id'>) => {
+    setIsAuthLoading(true);
+    setAuthError(null);
+    try {
+        const response = await fetch(`${API_BASE_URL}/signup`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(details),
+        });
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Sign up failed');
+        }
+        const newUser = await response.json();
+        setCurrentUser(newUser);
+        localStorage.setItem('careconnect_user', JSON.stringify(newUser));
+        await fetchData();
+    } catch (error: any) {
+        setAuthError(error.message);
     } finally {
         setIsAuthLoading(false);
     }
   };
   
-  const handleSignUp = async (details: Omit<User, 'id'>) => {
-     setIsAuthLoading(true);
-     setLoginError(null);
-     try {
-      const response = await fetch(`${API_BASE_URL}/signup`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(details),
-      });
-      const data = await response.json();
-      if (response.ok) {
-        handleLoginSuccess(data);
-      } else {
-        setLoginError(data.message || 'Failed to sign up.');
-      }
-    } catch (error) {
-       setLoginError('Failed to connect to the server.');
+  const handleSocialSignUp = async (role: Role, provider: 'Google' | 'Facebook', account: {name: string, email: string}) => {
+    setIsAuthLoading(true);
+    setAuthError(null);
+    try {
+        const response = await fetch(`${API_BASE_URL}/social-signup`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ role, account }),
+        });
+         if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Social sign up failed');
+        }
+        const user = await response.json();
+        setCurrentUser(user);
+        localStorage.setItem('careconnect_user', JSON.stringify(user));
+        await fetchData();
+    } catch (error: any) {
+        setAuthError(error.message);
     } finally {
         setIsAuthLoading(false);
     }
-  };
-
-  const handleSocialSignUp = async (role: Role, provider: 'Google' | 'Facebook', account: { name: string; email: string }) => {
-    setIsAuthLoading(true);
-    setLoginError(null);
-    try {
-      const response = await fetch(`${API_BASE_URL}/social-signup`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role, account }),
-      });
-      const data = await response.json();
-      if (response.ok) {
-        const user = data; // API returns user if exists or newly created one
-        handleLoginSuccess(user);
-      } else {
-        setLoginError(data.message || 'Social login failed.');
-      }
-    } catch (error) {
-       setLoginError('Failed to connect to the server.');
-    } finally {
-       setIsAuthLoading(false);
-    }
-  };
+  }
 
   const handleLogout = () => {
-    localStorage.removeItem('currentUser');
     setCurrentUser(null);
-    // Clear all data on logout
-    setAppointments([]);
-    setPatients([]);
-    setDoctors([]);
-    setReceptionists([]);
-    setMedicalRecords([]);
-    setReviews([]);
-    setNotifications([]);
+    localStorage.removeItem('careconnect_user');
+    setActiveView('dashboard');
   };
 
-  const markNotificationAsRead = useCallback(async (notificationId: string) => {
-    setNotifications(prev =>
-      prev.map(n => (n.id === notificationId ? { ...n, read: true } : n))
-    );
-    try {
-        await fetch(`${API_BASE_URL}/notifications/read`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: notificationId }),
-        });
-    } catch (error) {
-        console.error("Failed to mark notification as read:", error);
-        // Optionally revert state on failure
-    }
-  }, []);
+  const handleAddAppointment = async (appointment: Omit<Appointment, 'id'>) => {
+    const response = await fetch(`${API_BASE_URL}/appointments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(appointment),
+    });
+    const newAppointment = await response.json();
+    setAppointments(prev => [...prev, newAppointment]);
+  };
 
-  const markAllNotificationsAsRead = useCallback(async () => {
-    if(!currentUser) return;
-    setNotifications(prev =>
-      prev.map(n => (n.userId === currentUser.id ? { ...n, read: true } : n))
-    );
-    try {
-        await fetch(`${API_BASE_URL}/notifications/read-all`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: currentUser.id }),
-        });
-    } catch (error) {
-        console.error("Failed to mark all notifications as read:", error);
+  const handleUpdateAppointment = async (appointment: Appointment) => {
+    const response = await fetch(`${API_BASE_URL}/appointments/${appointment.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(appointment),
+    });
+    const { updatedAppointment, notifications: updatedNotifications } = await response.json();
+    setAppointments(prev => prev.map(a => (a.id === updatedAppointment.id ? updatedAppointment : a)));
+    if (updatedNotifications) {
+      setNotifications(updatedNotifications);
     }
-  }, [currentUser]);
+  };
+
+  // FIX: Add a function to handle deleting appointments
+  const handleDeleteAppointment = async (id: string) => {
+    const originalAppointments = [...appointments];
+    setAppointments(prev => prev.filter(a => a.id !== id));
+    try {
+      const response = await fetch(`${API_BASE_URL}/appointments/${id}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        setAppointments(originalAppointments);
+        console.error('Failed to delete appointment.');
+      }
+    } catch (error) {
+      setAppointments(originalAppointments);
+      console.error('Error deleting appointment:', error);
+    }
+  };
+
+  const updateUserProfile = async (user: User | Doctor | Patient) => {
+    const roleEndpoint = `${user.role.toLowerCase()}s`;
+    const response = await fetch(`${API_BASE_URL}/${roleEndpoint}/${user.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(user),
+    });
+    const updatedUser = await response.json();
+    
+    setCurrentUser(updatedUser);
+    localStorage.setItem('careconnect_user', JSON.stringify(updatedUser));
+    
+    // Update the specific user list
+    if (user.role === Role.Doctor) {
+        setDoctors(prev => prev.map(d => d.id === user.id ? updatedUser : d));
+    } else if (user.role === Role.Patient) {
+        setPatients(prev => prev.map(p => p.id === user.id ? updatedUser : p));
+    } else if (user.role === Role.Receptionist) {
+        setReceptionists(prev => prev.map(r => r.id === user.id ? updatedUser : r));
+    }
+    return updatedUser;
+  };
   
-  const addAppointment = useCallback(async (newAppointmentData: Omit<Appointment, 'id'>) => {
-    try {
-        const response = await fetch(`${API_BASE_URL}/appointments`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(newAppointmentData),
-        });
-        const newAppointment = await response.json();
-        if (response.ok) {
-            setAppointments(prev => [...prev, newAppointment]);
-        }
-    } catch (error) {
-        console.error("Failed to add appointment:", error);
-    }
-  }, []);
+  const handleAddMedicalRecord = async (record: Omit<MedicalRecord, 'id'>) => {
+    const response = await fetch(`${API_BASE_URL}/medical-records`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(record),
+    });
+    const newRecord = await response.json();
+    setMedicalRecords(prev => [...prev, newRecord]);
+  };
   
-  const updateAppointment = useCallback(async (updatedAppointment: Appointment) => {
-    try {
-        const response = await fetch(`${API_BASE_URL}/appointments/${updatedAppointment.id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(updatedAppointment),
-        });
-        const data = await response.json();
-        if (response.ok) {
-            setAppointments(prev => prev.map(appt => appt.id === data.updatedAppointment.id ? data.updatedAppointment : appt));
-            setNotifications(data.notifications); // Update notifications from server response
-        }
-    } catch (error) {
-        console.error("Failed to update appointment:", error);
+  const handleAddReview = async (review: Omit<Review, 'id'>) => {
+    const response = await fetch(`${API_BASE_URL}/reviews`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(review),
+    });
+    const newReview = await response.json();
+    setReviews(prev => [...prev, newReview]);
+  };
+  
+  const handleMarkNotificationAsRead = async (id: string) => {
+    const notification = notifications.find(n => n.id === id);
+    if (notification && !notification.read) {
+       setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+       await fetch(`${API_BASE_URL}/notifications/read`, {
+         method: 'PUT',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({ id }),
+       });
     }
-  }, []);
+  };
 
-  const updateProfile = useCallback(async (updatedUser: User | Doctor | Patient) => {
-    const roleEndpoint = `${updatedUser.role.toLowerCase()}s`; // doctors, patients, receptionists
-    try {
-        const response = await fetch(`${API_BASE_URL}/${roleEndpoint}/${updatedUser.id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(updatedUser),
-        });
-        const savedUser = await response.json();
-        if(response.ok) {
-            switch(savedUser.role) {
-                case Role.Doctor:
-                    setDoctors(prev => prev.map(d => d.id === savedUser.id ? savedUser : d));
-                    break;
-                case Role.Patient:
-                    setPatients(prev => prev.map(p => p.id === savedUser.id ? savedUser : p));
-                    break;
-                case Role.Receptionist:
-                    setReceptionists(prev => prev.map(r => r.id === savedUser.id ? savedUser : r));
-                    break;
-            }
-            setCurrentUser(savedUser);
-            localStorage.setItem('currentUser', JSON.stringify(savedUser));
-        }
-    } catch (error) {
-        console.error(`Failed to update ${updatedUser.role} profile:`, error);
+  const handleMarkAllNotificationsAsRead = async () => {
+    if (currentUser) {
+      setNotifications(prev => prev.map(n => n.userId === currentUser.id ? { ...n, read: true } : n));
+      await fetch(`${API_BASE_URL}/notifications/read-all`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: currentUser.id }),
+      });
     }
-  }, []);
+  };
 
-  const addMedicalRecord = useCallback(async (newRecordData: Omit<MedicalRecord, 'id'>) => {
-    try {
-        const response = await fetch(`${API_BASE_URL}/medical-records`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(newRecordData),
-        });
-        const newRecord = await response.json();
-        if (response.ok) {
-            setMedicalRecords(prev => [...prev, newRecord]);
-        }
-    } catch(error) {
-        console.error("Failed to add medical record:", error);
-    }
-  }, []);
-
-  const addReview = useCallback(async (newReviewData: Omit<Review, 'id'>) => {
-    try {
-        const response = await fetch(`${API_BASE_URL}/reviews`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(newReviewData),
-        });
-        const newReview = await response.json();
-        if (response.ok) {
-            setReviews(prev => [...prev, newReview]);
-        }
-    } catch(error) {
-        console.error("Failed to add review:", error);
-    }
-  }, []);
-
-  const renderMainContent = () => {
+  const renderDashboard = () => {
     if (!currentUser) return null;
-    if (isLoading) {
-        return (
-          <div className="flex flex-col justify-center items-center h-64 space-y-4">
-            <Spinner size="lg" />
-            <div className="text-lg text-gray-600">Loading your dashboard...</div>
-          </div>
-        );
+
+    if ((currentUser.role === Role.Patient && !(currentUser as Patient).profileComplete) ||
+        (currentUser.role === Role.Doctor && !(currentUser as Doctor).profileComplete)) {
+      if (currentUser.role === Role.Patient) {
+        return <PatientOnboarding patient={currentUser as Patient} onSave={updateUserProfile} />;
+      }
+      if (currentUser.role === Role.Doctor) {
+        return <DoctorOnboarding doctor={currentUser as Doctor} onSave={updateUserProfile} />;
+      }
+    }
+    
+    if (activeView === 'profile') {
+      switch (currentUser.role) {
+        case Role.Patient:
+          return <PatientProfile patient={currentUser as Patient} onSave={updateUserProfile} onBack={() => setActiveView('dashboard')} />;
+        case Role.Doctor:
+          return <DoctorProfile doctor={currentUser as Doctor} onSave={updateUserProfile} onBack={() => setActiveView('dashboard')} />;
+        case Role.Receptionist:
+          return <ReceptionistProfile user={currentUser as User} onSave={updateUserProfile} onBack={() => setActiveView('dashboard')} />;
+      }
     }
 
-    if (view === 'profile') {
-       switch (currentUser.role) {
-         case Role.Doctor:
-           return <DoctorProfile doctor={doctors.find(d => d.id === currentUser.id)!} onSave={updateProfile} onBack={() => setView('dashboard')} />;
-         case Role.Patient:
-           return <PatientProfile patient={patients.find(p => p.id === currentUser.id)!} onSave={updateProfile} onBack={() => setView('dashboard')} />;
-         case Role.Receptionist:
-           return <ReceptionistProfile user={currentUser} onSave={updateProfile} onBack={() => setView('dashboard')} />;
-         default:
-           return <div>Invalid Role</div>;
-       }
-    }
-
-    // Default to dashboard view
     switch (currentUser.role) {
-      case Role.Doctor:
-        const doctor = doctors.find(d => d.id === currentUser.id) as Doctor;
-        if (!doctor.profileComplete) {
-            return <DoctorOnboarding doctor={doctor} onSave={updateProfile} />;
-        }
-        return <DoctorDashboard 
-                  doctor={doctor} 
-                  appointments={appointments}
-                  patients={patients}
-                  doctors={doctors}
-                  medicalRecords={medicalRecords}
-                  reviews={reviews}
-                  updateAppointment={updateAppointment}
-                  updateDoctorProfile={updateProfile}
-                  addMedicalRecord={addMedicalRecord}
-                />;
       case Role.Patient:
-        const patient = patients.find(p => p.id === currentUser.id) as Patient;
-        if (!patient.profileComplete) {
-            return <PatientOnboarding patient={patient} onSave={updateProfile} />;
-        }
-        return <PatientDashboard 
-                  patient={patient} 
-                  appointments={appointments}
-                  patients={patients}
-                  doctors={doctors}
-                  medicalRecords={medicalRecords}
-                  reviews={reviews}
-                  addAppointment={addAppointment}
-                  addMedicalRecord={addMedicalRecord}
-                  addReview={addReview}
-                />;
+        return (
+          <PatientDashboard
+            patient={currentUser as Patient}
+            appointments={appointments}
+            patients={patients}
+            doctors={doctors}
+            medicalRecords={medicalRecords}
+            reviews={reviews}
+            addAppointment={handleAddAppointment}
+            addMedicalRecord={handleAddMedicalRecord}
+            addReview={handleAddReview}
+          />
+        );
+      case Role.Doctor:
+        return (
+          <DoctorDashboard
+            doctor={currentUser as Doctor}
+            appointments={appointments}
+            patients={patients}
+            doctors={doctors}
+            medicalRecords={medicalRecords}
+            reviews={reviews}
+            updateAppointment={handleUpdateAppointment}
+            updateDoctorProfile={updateUserProfile}
+            addMedicalRecord={handleAddMedicalRecord}
+          />
+        );
       case Role.Receptionist:
-        return <ReceptionistDashboard 
-                  user={currentUser}
-                  appointments={appointments}
-                  patients={patients}
-                  doctors={doctors}
-                  reviews={reviews}
-                  addAppointment={addAppointment}
-                  updateAppointment={updateAppointment}
-                />;
+        return (
+          <ReceptionistDashboard
+            appointments={appointments}
+            patients={patients as Patient[]}
+            doctors={doctors as Doctor[]}
+            medicalRecords={medicalRecords}
+            reviews={reviews}
+            updateAppointment={handleUpdateAppointment}
+            addAppointment={handleAddAppointment}
+            deleteAppointment={handleDeleteAppointment}
+          />
+        );
       default:
-        return <div>Invalid Role</div>;
+        return null;
     }
   };
 
-  if (!currentUser) {
-    return <Login onSignIn={handleSignIn} onSignUp={handleSignUp} onSocialSignUp={handleSocialSignUp} error={loginError} isLoading={isAuthLoading} />;
-  }
-  
-  const userNotifications = notifications.filter(n => n.userId === currentUser.id);
+  const userNotifications = notifications.filter(n => n.userId === currentUser?.id);
 
   return (
-    <div className="min-h-screen bg-transparent text-gray-700">
-      <Header 
-        user={currentUser} 
-        onLogout={handleLogout}
-        notifications={userNotifications}
-        onMarkNotificationAsRead={markNotificationAsRead}
-        onMarkAllNotificationsAsRead={markAllNotificationsAsRead}
-        onNavigateToProfile={() => setView('profile')}
-      />
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        {renderMainContent()}
-      </main>
+    <div className="min-h-screen bg-primary-50 font-sans">
+      {!currentUser ? (
+        <Login onSignIn={handleSignIn} onSignUp={handleSignUp} onSocialSignUp={handleSocialSignUp} error={authError} isLoading={isAuthLoading} />
+      ) : (
+        <>
+          <Header
+            user={currentUser}
+            onLogout={handleLogout}
+            notifications={userNotifications}
+            onMarkNotificationAsRead={handleMarkNotificationAsRead}
+            onMarkAllNotificationsAsRead={handleMarkAllNotificationsAsRead}
+            onNavigateToProfile={() => setActiveView('profile')}
+          />
+          <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+            {isLoading ? (
+               <div className="flex flex-col justify-center items-center h-96">
+                  <Spinner size="lg" />
+                  <p className="mt-4 text-gray-600">Loading your dashboard...</p>
+               </div>
+            ) : renderDashboard()}
+          </main>
+        </>
+      )}
     </div>
   );
 };

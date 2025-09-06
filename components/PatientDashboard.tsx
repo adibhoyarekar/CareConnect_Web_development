@@ -5,6 +5,7 @@ import Modal from './Modal';
 import AppointmentForm from './AppointmentForm';
 import MedicalRecordUploadForm from './MedicalRecordUploadForm';
 import ReviewModal from './ReviewModal';
+import { sortAppointmentsChronologically } from '../utils/sorting';
 
 interface PatientDashboardProps {
   patient: Patient;
@@ -25,9 +26,9 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ patient, appointmen
   const [reviewingAppointment, setReviewingAppointment] = useState<Appointment | null>(null);
   
   const patientAppointments = useMemo(() => {
-    return appointments
-      .filter(appt => appt.patientId === patient.id)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const filtered = appointments
+      .filter(appt => appt.patientId === patient.id);
+    return sortAppointmentsChronologically(filtered, 'desc');
   }, [appointments, patient.id]);
 
   const patientMedicalRecords = useMemo(() => medicalRecords.filter(r => r.patientId === patient.id), [medicalRecords, patient.id]);

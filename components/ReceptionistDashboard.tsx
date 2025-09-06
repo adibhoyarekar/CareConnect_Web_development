@@ -1,202 +1,175 @@
-import React, { useState, useMemo } from 'react';
-import { Appointment, Doctor, Patient, Role, AppointmentStatus, User, Review } from '../types';
+import React, { useMemo, useState } from 'react';
+import { Appointment, Patient, Doctor, AppointmentStatus, Role, Review, MedicalRecord } from '../types';
 import AppointmentTable from './AppointmentTable';
 import Modal from './Modal';
 import AppointmentForm from './AppointmentForm';
+import { exportToExcel } from '../utils/excelExport';
+import { sortAppointmentsChronologically } from '../utils/sorting';
 
 interface ReceptionistDashboardProps {
-  user: User;
   appointments: Appointment[];
   patients: Patient[];
   doctors: Doctor[];
   reviews: Review[];
-  addAppointment: (appointment: Omit<Appointment, 'id'>) => Promise<void>;
+  medicalRecords: MedicalRecord[];
   updateAppointment: (appointment: Appointment) => Promise<void>;
+  addAppointment: (appointment: Omit<Appointment, 'id'>) => Promise<void>;
+  deleteAppointment: (id: string) => Promise<void>;
 }
 
-const ReceptionistDashboard: React.FC<ReceptionistDashboardProps> = ({ user, appointments, patients, doctors, reviews, addAppointment, updateAppointment }) => {
+const ReceptionistDashboard: React.FC<ReceptionistDashboardProps> = ({ appointments, patients, doctors, reviews, medicalRecords, updateAppointment, addAppointment, deleteAppointment }) => {
+  const [filter, setFilter] = useState<AppointmentStatus | 'All'>('All');
+  const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [dateRange, setDateRange] = useState({ start: '', end: '' });
-  const [statusFilter, setStatusFilter] = useState<AppointmentStatus | 'All'>('All');
-
 
   const filteredAppointments = useMemo(() => {
-    return appointments.filter(appt => {
-      // Date range filter
-      if (dateRange.start && appt.date < dateRange.start) return false;
-      if (dateRange.end && appt.date > dateRange.end) return false;
-      
-      // Status filter
-      if (statusFilter !== 'All' && appt.status !== statusFilter) return false;
-      
-      // Search term filter (patient/doctor name)
-      const lowercasedTerm = searchTerm.toLowerCase();
-      if (lowercasedTerm) {
+    const filtered = appointments
+      .filter(appt => {
         const patient = patients.find(p => p.id === appt.patientId);
         const doctor = doctors.find(d => d.id === appt.doctorId);
-        const patientMatch = patient?.name.toLowerCase().includes(lowercasedTerm);
-        const doctorMatch = doctor?.name.toLowerCase().includes(lowercasedTerm);
-        if (!patientMatch && !doctorMatch) {
-            return false;
-        }
-      }
+        const patientName = patient?.name.toLowerCase() || '';
+        const doctorName = doctor?.name.toLowerCase() || '';
+        const lowerCaseSearch = searchTerm.toLowerCase();
 
-      return true; // Keep the appointment if it passes all filters
-    }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()); // Sort by date ascending
-  }, [appointments, patients, doctors, searchTerm, dateRange, statusFilter]);
+        const matchesSearch = patientName.includes(lowerCaseSearch) || doctorName.includes(lowerCaseSearch);
+        const matchesFilter = filter === 'All' || appt.status === filter;
 
-  const handleOpenModalForNew = () => {
-    setEditingAppointment(null);
-    setIsModalOpen(true);
+        return matchesSearch && matchesFilter;
+      });
+      
+    return sortAppointmentsChronologically(filtered);
+  }, [appointments, patients, doctors, filter, searchTerm]);
+
+  const handleStatusChange = (id: string, status: AppointmentStatus) => {
+    const appointmentToUpdate = appointments.find(appt => appt.id === id);
+    if (appointmentToUpdate) {
+      updateAppointment({ ...appointmentToUpdate, status });
+    }
   };
+  
+  const handleExport = () => {
+    exportToExcel(filteredAppointments, patients, doctors);
+  }
 
-  const handleOpenModalForEdit = (appointment: Appointment) => {
+  const handleOpenModal = (appointment: Appointment | null) => {
     setEditingAppointment(appointment);
     setIsModalOpen(true);
   };
 
-  const handleSaveAppointment = async (appointmentData: Omit<Appointment, 'id'> | Appointment) => {
-    if ('id' in appointmentData && editingAppointment) {
-      await updateAppointment(appointmentData as Appointment);
-    } else {
-      await addAppointment(appointmentData);
-    }
-    setIsModalOpen(false);
+  const handleCloseModal = () => {
     setEditingAppointment(null);
-  };
-
-  const handleStatusChange = (id: string, status: AppointmentStatus) => {
-    const appointmentToUpdate = appointments.find(appt => appt.id === id);
-    if(appointmentToUpdate) {
-        updateAppointment({...appointmentToUpdate, status});
-    }
+    setIsModalOpen(false);
   };
   
-  const handleCall = (phone: string) => {
-    window.location.href = `tel:${phone}`;
+  const handleSaveAppointment = async (appointmentData: Omit<Appointment, 'id'> | Appointment) => {
+    if ('id' in appointmentData) {
+        await updateAppointment(appointmentData);
+    } else {
+        await addAppointment(appointmentData);
+    }
+    handleCloseModal();
   };
 
-  const clearFilters = () => {
-    setSearchTerm('');
-    setDateRange({ start: '', end: '' });
-    setStatusFilter('All');
+  const handleDeleteAppointment = async (id: string) => {
+    if (window.confirm('Are you sure you want to delete this appointment?')) {
+        await deleteAppointment(id);
+    }
   };
+
+  const stats = useMemo(() => {
+    const total = appointments.length;
+    const pending = appointments.filter(a => a.status === AppointmentStatus.Pending).length;
+    const today = new Date().toISOString().split('T')[0];
+    const confirmedToday = appointments.filter(a => a.status === AppointmentStatus.Confirmed && a.date === today).length;
+    const completed = appointments.filter(a => a.status === AppointmentStatus.Completed).length;
+    return { total, pending, confirmedToday, completed };
+  }, [appointments]);
 
   return (
-    <div className="space-y-6">
-      <div className="bg-white p-6 rounded-xl shadow-lg">
-        <h2 className="text-2xl font-bold text-gray-900">Receptionist Dashboard</h2>
-        <p className="text-gray-600">Manage all appointments and patient records.</p>
-      </div>
-
-      <div className="bg-white p-6 rounded-xl shadow-lg">
-        <div className="space-y-4">
-            <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-                <div className="relative w-full md:w-2/3">
-                     <label htmlFor="search" className="sr-only">Search</label>
-                     <span className="absolute inset-y-0 left-0 flex items-center pl-3">
-                       <svg className="w-5 h-5 text-gray-400" viewBox="0 0 24 24" fill="none">
-                           <path d="M21 21L15 15M17 10C17 13.866 13.866 17 10 17C6.13401 17 3 13.866 3 10C3 6.13401 6.13401 3 10 3C13.866 3 17 6.13401 17 10Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"></path>
-                       </svg>
-                     </span>
-                     <input 
-                         id="search"
-                         type="text" 
-                         placeholder="Search by patient or doctor name..."
-                         value={searchTerm}
-                         onChange={(e) => setSearchTerm(e.target.value)}
-                         className="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-gray-100 border-gray-300 text-gray-900 placeholder-gray-500"
-                     />
-                 </div>
-                  <button
-                   onClick={handleOpenModalForNew}
-                   className="w-full md:w-auto flex-shrink-0 inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-300"
-                 >
-                   Book New Appointment
-                 </button>
-            </div>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
-              <div>
-                <label htmlFor="startDate" className="block text-sm font-medium text-gray-700">From</label>
-                <input
-                  id="startDate"
-                  type="date"
-                  value={dateRange.start}
-                  onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
-                  className="mt-1 w-full pl-3 pr-2 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-gray-100 border-gray-300 text-gray-900"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="endDate" className="block text-sm font-medium text-gray-700">To</label>
-                <input
-                  id="endDate"
-                  type="date"
-                  value={dateRange.end}
-                  onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
-                  className="mt-1 w-full pl-3 pr-2 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-gray-100 border-gray-300 text-gray-900"
-                  min={dateRange.start}
-                />
-              </div>
-              
-              <div>
-                <label htmlFor="statusFilter" className="block text-sm font-medium text-gray-700">Status</label>
-                <select 
-                  id="statusFilter"
-                  value={statusFilter} 
-                  onChange={(e) => setStatusFilter(e.target.value as AppointmentStatus | 'All')}
-                  className="mt-1 block w-full pl-3 pr-10 py-2 text-base rounded-md sm:text-sm bg-gray-100 border-gray-300 text-gray-900 focus:ring-primary-500 focus:border-primary-500"
-                >
-                  <option value="All">All Statuses</option>
-                  {Object.values(AppointmentStatus).map(status => (
-                    <option key={status} value={status}>{status}</option>
-                  ))}
-                </select>
-              </div>
-              
-              <div>
-                <button 
-                  onClick={clearFilters}
-                  className="w-full bg-gray-200 py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-300"
-                >
-                  Clear Filters
-                </button>
-              </div>
-            </div>
+    <>
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <StatCard title="Total Appointments" value={stats.total} />
+            <StatCard title="Pending Confirmation" value={stats.pending} color="yellow" />
+            <StatCard title="Confirmed for Today" value={stats.confirmedToday} color="green" />
+            <StatCard title="Total Completed" value={stats.completed} color="blue" />
         </div>
 
-
-        <div className="mt-6">
+        <div className="bg-white p-6 rounded-xl shadow-lg">
+          <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-4">
+            <h3 className="text-xl font-semibold text-gray-900">Manage Appointments</h3>
+             <input
+                type="text"
+                placeholder="Search by patient or doctor..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full md:w-64 block pl-3 pr-10 py-2 text-base rounded-md sm:text-sm bg-gray-100 border-gray-300 text-gray-900 focus:ring-primary-500 focus:border-primary-500"
+            />
+          </div>
+          <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-4">
+            <div className="flex items-center space-x-4">
+               <select 
+                 value={filter} 
+                 onChange={(e) => setFilter(e.target.value as AppointmentStatus | 'All')}
+                 className="block pl-3 pr-10 py-2 text-base rounded-md sm:text-sm bg-gray-100 border-gray-300 text-gray-900 focus:ring-primary-500 focus:border-primary-500"
+               >
+                 <option value="All">All Statuses</option>
+                 {Object.values(AppointmentStatus).map(status => (
+                   <option key={status} value={status}>{status}</option>
+                 ))}
+               </select>
+            </div>
+            <div className="flex items-center space-x-2">
+                <button onClick={() => handleOpenModal(null)} className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-lg active:scale-95">
+                    Add Appointment
+                </button>
+                <button onClick={handleExport} className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500">
+                    Export to Excel
+                </button>
+            </div>
+          </div>
           <AppointmentTable
             appointments={filteredAppointments}
             patients={patients}
             doctors={doctors}
             currentUserRole={Role.Receptionist}
-            onEdit={handleOpenModalForEdit}
             onStatusChange={handleStatusChange}
-            onCall={handleCall}
+            onEditAppointment={(appt) => handleOpenModal(appt)}
+            onDeleteAppointment={handleDeleteAppointment}
           />
         </div>
       </div>
-
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingAppointment ? "Edit Appointment" : "Book New Appointment"}>
-        <AppointmentForm
-          appointment={editingAppointment}
-          patients={patients}
-          doctors={doctors}
-          appointments={appointments}
-          reviews={reviews}
-          onSave={handleSaveAppointment}
-          onClose={() => setIsModalOpen(false)}
-          currentUserId={user.id}
-          currentUserRole={Role.Receptionist}
+      <Modal isOpen={isModalOpen} onClose={handleCloseModal} title={editingAppointment ? 'Edit Appointment' : 'Add New Appointment'}>
+        <AppointmentForm 
+            appointments={appointments}
+            patients={patients}
+            doctors={doctors}
+            reviews={reviews}
+            onSave={handleSaveAppointment}
+            onClose={handleCloseModal}
+            currentUserId={'rec1'} // Receptionist ID, not crucial for this form
+            currentUserRole={Role.Receptionist}
+            appointmentToEdit={editingAppointment}
         />
       </Modal>
-    </div>
+    </>
   );
 };
+
+const StatCard: React.FC<{title: string, value: number, color?: string}> = ({ title, value, color = 'indigo' }) => {
+    const colors: {[key: string]: string} = {
+        indigo: 'from-indigo-500 to-purple-600',
+        yellow: 'from-yellow-400 to-amber-500',
+        green: 'from-green-400 to-emerald-500',
+        blue: 'from-blue-400 to-cyan-500'
+    };
+    return (
+         <div className={`bg-gradient-to-br ${colors[color]} p-6 rounded-xl shadow-lg text-white`}>
+            <h4 className="text-sm font-medium uppercase tracking-wider">{title}</h4>
+            <p className="text-4xl font-bold mt-2">{value}</p>
+        </div>
+    )
+}
 
 export default ReceptionistDashboard;

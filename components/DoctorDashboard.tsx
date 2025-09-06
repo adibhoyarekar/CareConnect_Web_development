@@ -5,6 +5,7 @@ import Modal from './Modal';
 import { exportToExcel } from '../utils/excelExport';
 import MedicalRecordUploadForm from './MedicalRecordUploadForm';
 import Spinner from './Spinner';
+import { sortAppointmentsChronologically } from '../utils/sorting';
 
 interface DoctorDashboardProps {
   doctor: Doctor;
@@ -73,10 +74,10 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ doctor, appointments,
   const [isRecordUploadModalOpen, setIsRecordUploadModalOpen] = useState(false);
   
   const doctorAppointments = useMemo(() => {
-    return appointments
+    const filtered = appointments
       .filter(appt => appt.doctorId === doctor.id)
-      .filter(appt => filter === 'All' || appt.status === filter)
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      .filter(appt => filter === 'All' || appt.status === filter);
+    return sortAppointmentsChronologically(filtered);
   }, [appointments, doctor.id, filter]);
 
   const doctorReviews = useMemo(() => reviews.filter(r => r.doctorId === doctor.id), [reviews, doctor.id]);
