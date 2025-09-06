@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { GoogleGenAI, Chat } from "@google/genai";
+import React, { useState, useEffect, useRef } from 'react';
+// FIX: Import GoogleGenAI and Type for Gemini API integration.
+import { GoogleGenAI, Type } from "@google/genai";
 import { Appointment, Doctor, Patient, AppointmentStatus } from '../types';
 import Modal from './Modal';
 import Spinner from './Spinner';
@@ -11,240 +12,348 @@ interface AIAgentModalProps {
   patient: Patient;
   doctors: Doctor[];
   appointments: Appointment[];
-  onAppointmentBooked: (appointmentData: Omit<Appointment, 'id'>) => void;
+  onAppointmentBooked: (appointmentData: Omit<Appointment, 'id'>) => Promise<void>;
 }
 
-type Message = {
-  role: 'user' | 'model';
+interface Message {
+  sender: 'user' | 'ai' | 'system';
   text: string;
-};
+  suggestions?: AppointmentSuggestion[];
+}
 
-const extractJson = (text: string): any | null => {
-    const match = text.match(/```json\s*(\{[\s\S]*\})\s*```/);
-    if (match && match[1]) {
-        try {
-            return JSON.parse(match[1]);
-        } catch (e) {
-            console.error("Failed to parse JSON from AI response", e);
-            return null;
-        }
-    }
-    return null;
-};
+interface AppointmentSuggestion {
+  doctorId: string;
+  date: string;
+  time: string;
+  reason: string;
+}
 
-const AIAgentModal: React.FC<AIAgentModalProps> = ({ isOpen, onClose, patient, doctors, appointments, onAppointmentBooked }) => {
+// FIX: Initialize the GoogleGenAI client as per the guidelines.
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+const AIAgentModal: React.FC<AIAgentModalProps> = ({
+  isOpen,
+  onClose,
+  patient,
+  doctors,
+  appointments,
+  onAppointmentBooked,
+}) => {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [userInput, setUserInput] = useState('');
-  const [isLoading, setIsLoading] =useState(false);
-  const chatRef = useRef<Chat | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  
-  const [bookingDetails, setBookingDetails] = useState({ doctorId: '', date: '' });
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [bookingConfirmation, setBookingConfirmation] = useState<AppointmentSuggestion | null>(null);
+
+  const chatContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isOpen) {
-        // Reset state when modal opens
-        setMessages([]);
-        setUserInput('');
-        setIsLoading(true);
-        setBookingDetails({ doctorId: '', date: '' });
+      const upcomingAppointment = appointments.find(a => 
+          a.patientId === patient.id && 
+          new Date(a.date) >= new Date() &&
+          (a.status === AppointmentStatus.Confirmed || a.status === AppointmentStatus.Pending)
+      );
+      
+      let greeting = `Hello, ${patient.name}! I'm your AI assistant for CareConnect.`;
+      if (upcomingAppointment) {
+          const doctorName = doctors.find(d => d.id === upcomingAppointment.doctorId)?.name || 'a doctor';
+          greeting += ` I see you have an upcoming appointment with ${doctorName} on ${new Date(upcomingAppointment.date).toLocaleDateString(undefined, {month: 'long', day: 'numeric', timeZone: 'UTC'})}.`;
+      }
+      greeting += "\n\nHow can I help you today? I can book an appointment, provide information about our doctors, or answer general questions."
 
-        const initializeChat = async () => {
-            try {
-              const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
-              const doctorListString = doctors.map(d => `- Dr. ${d.name} (ID: ${d.id}), Specialty: ${d.specialty}`).join('\n');
-              
-              const systemInstruction = `You are CareConnect AI, a friendly and efficient virtual assistant for a medical clinic. Your primary goal is to help patients book appointments.
-
-Your Persona:
-- You are polite, empathetic, and professional.
-- You are clear and concise in your communication.
-- You should guide the user through the booking process step-by-step.
-
-Clinic Information:
-Here is a list of our available doctors and their specialties:
-${doctorListString}
-
-Booking Process:
-1. Greet the user and confirm their identity (${patient.name}). Start by asking what you can help them with today.
-2. Ask for the reason for their appointment.
-3. Ask them to choose a doctor from the list provided.
-4. Once a doctor is chosen, ask for their preferred date.
-5. IMPORTANT: After the user provides a date, you will receive a list of available time slots from the system. Present these options clearly to the user.
-6. Once all information (reason, doctorId, date, time) is gathered, summarize the appointment details and ask the user for final confirmation.
-7. Final Output: Upon user confirmation, and ONLY then, you MUST respond with ONLY a single JSON object in a markdown code block. Do not include any other text before or after the JSON block. The JSON object must have this exact structure:
-\`\`\`json
-{
-  "action": "BOOK_APPOINTMENT",
-  "payload": {
-    "doctorId": "string",
-    "date": "YYYY-MM-DD",
-    "time": "HH:mm",
-    "reason": "string"
-  }
-}
-\`\`\`
-Replace the string values with the collected information. The doctorId must be one of the IDs from the doctor list.`;
-
-              chatRef.current = ai.chats.create({
-                model: 'gemini-2.5-flash',
-                config: { systemInstruction }
-              });
-
-              // Send initial message
-              const response = await chatRef.current.sendMessage({ message: "Hello" });
-              setMessages([{ role: 'model', text: response.text }]);
-            } catch (error) {
-                console.error("AI initialization failed:", error);
-                setMessages([{ role: 'model', text: "Sorry, I'm having trouble connecting. Please try again later." }]);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        initializeChat();
+      setMessages([ { sender: 'ai', text: greeting } ]);
+      setInput('');
+      setIsLoading(false);
+      setBookingConfirmation(null);
     }
-  }, [isOpen, doctors, patient.name]);
+  }, [isOpen, patient, appointments, doctors]);
   
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isLoading]);
-  
-  const availableTimes = useMemo(() => {
-    if (!bookingDetails.doctorId || !bookingDetails.date) return [];
-    
-    const selectedDoctor = doctors.find(d => d.id === bookingDetails.doctorId);
-    if (!selectedDoctor?.workingSchedule) return [];
-
-    const selectedDate = new Date(`${bookingDetails.date}T00:00:00Z`);
-    const dayOfWeek = selectedDate.toLocaleString('en-US', { weekday: 'long', timeZone: 'UTC' });
-    
-    const scheduleForDay = selectedDoctor.workingSchedule[dayOfWeek];
-    if (!scheduleForDay || scheduleForDay.isOff) return [];
-
-    const slots = [];
-    const { startTime, endTime } = scheduleForDay;
-    const timeToMinutes = (time: string) => {
-      const [hours, minutes] = time.split(':').map(Number);
-      return hours * 60 + minutes;
-    };
-    
-    const startMinutes = timeToMinutes(startTime);
-    const endMinutes = timeToMinutes(endTime);
-
-    for (let minutes = startMinutes; minutes < endMinutes; minutes += 30) {
-      const h = Math.floor(minutes / 60);
-      const m = minutes % 60;
-      slots.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
+  }, [messages]);
+
+
+  const generateSystemPrompt = () => {
+    const today = new Date().toISOString().split('T')[0];
+    const availableDoctors = doctors
+        .filter(d => d.profileComplete)
+        .map(d => ({
+            id: d.id,
+            name: d.name,
+            specialty: d.specialty,
+            workingSchedule: d.workingSchedule,
+            fees: d.fees,
+        }));
     
-    const bookedTimes = new Set(
-      appointments.filter(appt => appt.doctorId === bookingDetails.doctorId && appt.date === bookingDetails.date).map(appt => appt.time)
-    );
-      
-    return slots.filter(time => !bookedTimes.has(time));
-  }, [bookingDetails.doctorId, bookingDetails.date, appointments, doctors]);
+    const bookedSlots = appointments
+      .filter(a => a.status !== 'Cancelled' && a.status !== 'Rejected')
+      .map(a => ({
+        doctorId: a.doctorId,
+        date: a.date,
+        time: a.time,
+    }));
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!userInput.trim() || isLoading || !chatRef.current) return;
+    return `You are a friendly and professional AI assistant for the 'CareConnect' medical clinic. Your goal is to help patients with their inquiries. You can book appointments and answer questions about the clinic, doctors, and general health topics. The current patient is ${patient.name}.
 
-    const newUserMessage: Message = { role: 'user', text: userInput };
-    setMessages(prev => [...prev, newUserMessage]);
-    setUserInput('');
+    Current date: ${today}.
+
+    Clinic Information:
+    - Doctors: ${JSON.stringify(availableDoctors, null, 2)}
+    - Existing Booked Appointments (unavailable slots): ${JSON.stringify(bookedSlots, null, 2)}
+
+    Core Tasks:
+    1.  Answer general questions: Provide helpful information based on the provided clinic data or your general knowledge for health FAQs.
+    2.  Book appointments: If the user wants to book an appointment, follow these steps:
+        a. Gather information: Determine the reason for the visit, preferred doctor, and desired date/time from the user's request.
+        b. Check availability: Based on the doctor's working schedule and existing bookings, find available 30-minute slots.
+        c. Propose Slots: Once you have a specific doctor and date from the user, you MUST calculate all available 30-minute time slots for that day. Base this on the doctor's working schedule and the list of already booked appointments. Present ALL available slots for that specific day in the \`suggestions\` array. For example, if the user asks for "Dr. Smith on Tuesday" and she is available, your response message should be something like "Certainly. Dr. Smith has the following times available on Tuesday:" and the \`suggestions\` array must be populated with all corresponding available time objects.
+        d. Handle conflicts: If no slots are available for the requested doctor/date, clearly state this and suggest alternatives, like another date or a different doctor. For example: "I'm sorry, but Dr. Jane Smith has no available slots on that day. Would you like to try a different date, or see another doctor?"
+        e. Clarify: If the user's request is ambiguous (e.g., "I have a headache"), ask for more details to suggest the right specialist.
+
+    Response Format:
+    - You MUST respond in JSON format, adhering strictly to the provided schema.
+    - Your conversational message should be helpful and clear.
+    `;
+  };
+
+  const handleSendMessage = async () => {
+    if (!input.trim() || isLoading) return;
+
+    const userMessage: Message = { sender: 'user', text: input };
+    setMessages(prev => [...prev, userMessage]);
+    setInput('');
     setIsLoading(true);
 
     try {
-        let prompt = userInput;
-        
-        // Simple heuristic to detect if a doctor and date have been mentioned
-        const doctorMentioned = doctors.find(d => prompt.toLowerCase().includes(d.name.toLowerCase()));
-        const dateMentioned = prompt.match(/\d{4}-\d{2}-\d{2}|\b\w+\s\d{1,2}(st|nd|rd|th)?\b/);
-        
-        const currentDetails = { ...bookingDetails };
-        if (doctorMentioned) currentDetails.doctorId = doctorMentioned.id;
-        if (dateMentioned) {
-             // A more robust date parser would be needed for production
-            try {
-                currentDetails.date = new Date(dateMentioned[0] + (new Date().getFullYear())).toISOString().split('T')[0]
-            } catch {}
-        }
+      const systemInstruction = generateSystemPrompt();
+      const userPrompt = userMessage.text;
 
-        setBookingDetails(currentDetails);
+      const responseSchema = {
+        type: Type.OBJECT,
+        properties: {
+          response_type: {
+            type: Type.STRING,
+            description: "Either 'clarification' or 'suggestion'. Use 'clarification' if you need more information or are answering a question, 'suggestion' if you are providing appointment options.",
+          },
+          message: {
+            type: Type.STRING,
+            description: "A friendly, conversational message to display to the user.",
+          },
+          suggestions: {
+            type: Type.ARRAY,
+            description: "An array of up to 5 appointment suggestions. This should be empty if response_type is 'clarification'.",
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                doctorId: { type: Type.STRING, description: "The ID of the suggested doctor." },
+                date: { type: Type.STRING, description: "The date of the appointment in YYYY-MM-DD format." },
+                time: { type: Type.STRING, description: "The time of the appointment in HH:mm format." },
+                reason: { type: Type.STRING, description: "A concise reason for the visit based on the user's query." },
+              },
+              required: ["doctorId", "date", "time", "reason"],
+            },
+          },
+        },
+        required: ["response_type", "message"],
+      };
 
-        // If we have doctor and date, inject available times into the prompt
-        if(currentDetails.doctorId && currentDetails.date) {
-            const times = availableTimes;
-            if(times.length > 0) {
-                 prompt += `\n\n[System note: The available time slots for the user on ${currentDetails.date} are: ${times.join(', ')}. Please present these options to the user.]`;
-            } else {
-                 prompt += `\n\n[System note: There are no available slots on ${currentDetails.date}. Please inform the user and ask for another date.]`;
-            }
-        }
-        
-        const response = await chatRef.current.sendMessage({ message: prompt });
-        const aiResponseText = response.text;
-        
-        const jsonData = extractJson(aiResponseText);
-        if (jsonData && jsonData.action === 'BOOK_APPOINTMENT') {
-            const { doctorId, date, time, reason } = jsonData.payload;
-            onAppointmentBooked({
-                patientId: patient.id,
-                doctorId,
-                date,
-                time,
-                reason,
-                status: AppointmentStatus.Pending,
-            });
-             setMessages(prev => [...prev, { role: 'model', text: "Great! I've booked that appointment for you. You'll receive a confirmation soon." }]);
-        } else {
-            setMessages(prev => [...prev, { role: 'model', text: aiResponseText }]);
-        }
+      // FIX: Call the Gemini API using generateContent with a response schema for structured output.
+      const result = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: userPrompt,
+        config: {
+            systemInstruction: systemInstruction,
+            responseMimeType: 'application/json',
+            responseSchema: responseSchema,
+        },
+      });
+
+      const jsonString = result.text.trim();
+      const parsedResponse = JSON.parse(jsonString);
+
+      const aiMessage: Message = {
+        sender: 'ai',
+        text: parsedResponse.message,
+        suggestions: parsedResponse.suggestions || [],
+      };
+      setMessages(prev => [...prev, aiMessage]);
+
     } catch (error) {
-        console.error("AI response failed:", error);
-        setMessages(prev => [...prev, { role: 'model', text: "I'm sorry, something went wrong. Could you try that again?" }]);
+      console.error("AI agent error:", error);
+      const errorMessage: Message = {
+        sender: 'ai',
+        text: "I'm sorry, I encountered an error. Please try again or book your appointment manually.",
+      };
+      setMessages(prev => [...prev, errorMessage]);
     } finally {
-        setIsLoading(false);
+      setIsLoading(false);
     }
   };
+  
+  const handleSuggestionClick = (suggestion: AppointmentSuggestion) => {
+    setBookingConfirmation(suggestion);
+  }
+
+  const confirmBooking = async () => {
+    if (!bookingConfirmation) return;
+    setIsLoading(true);
+    try {
+        await onAppointmentBooked({
+            ...bookingConfirmation,
+            patientId: patient.id,
+            status: AppointmentStatus.Pending,
+        });
+    } catch (error) {
+        console.error("Failed to book appointment from AI suggestion", error);
+        const errorMessage: Message = {
+            sender: 'ai',
+            text: "Sorry, there was a problem booking that appointment. Please try again.",
+        };
+        setMessages(prev => [...prev, errorMessage]);
+    } finally {
+        // Parent component will close the modal upon successful booking.
+    }
+  }
+
+  const renderMessageContent = (msg: Message) => {
+    const doctorMap = new Map(doctors.map(d => [d.id, d.name]));
+
+    // Group suggestions by doctor and date for a cleaner UI
+    const groupedSuggestions = (msg.suggestions || []).reduce((acc, s) => {
+        const key = `${s.doctorId}|${s.date}`;
+        if (!acc[key]) {
+            acc[key] = { doctorId: s.doctorId, date: s.date, times: [] };
+        }
+        acc[key].times.push(s);
+        return acc;
+    }, {} as Record<string, { doctorId: string; date: string; times: AppointmentSuggestion[] }>);
+
+    return (
+        <div className="space-y-3">
+            <p className="whitespace-pre-wrap">{msg.text}</p>
+            {Object.keys(groupedSuggestions).length > 0 && !bookingConfirmation && (
+                <div className="space-y-3 pt-2">
+                    {Object.values(groupedSuggestions).map((group, index) => (
+                        <div key={index} className="p-3 bg-primary-100/50 rounded-lg border border-primary-200">
+                            <p className="font-semibold text-primary-800">
+                                {doctorMap.get(group.doctorId) || 'Unknown Doctor'}
+                            </p>
+                            <p className="text-sm text-primary-700 mb-2">
+                                {new Date(group.date).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' })}
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                                {group.times.sort((a,b) => a.time.localeCompare(b.time)).map((suggestion, tIndex) => (
+                                    <button
+                                        key={tIndex}
+                                        onClick={() => handleSuggestionClick(suggestion)}
+                                        className="px-3 py-1.5 bg-white hover:bg-primary-50 text-primary-800 rounded-md text-sm font-semibold transition-colors duration-200 border border-primary-300 shadow-sm"
+                                    >
+                                        {suggestion.time}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+  }
+  
+  const renderBookingConfirmation = () => {
+    if (!bookingConfirmation) return null;
+    const doctor = doctors.find(d => d.id === bookingConfirmation.doctorId);
+    return (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-sm m-4 animate-modal-in">
+                <h3 className="text-lg font-bold text-gray-900">Confirm Appointment</h3>
+                <div className="mt-4 p-4 bg-gray-50 rounded-lg border">
+                    <p><span className="font-semibold">Patient:</span> {patient.name}</p>
+                    <p><span className="font-semibold">Doctor:</span> {doctor?.name}</p>
+                    <p><span className="font-semibold">Date:</span> {new Date(bookingConfirmation.date).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' })}</p>
+                    <p><span className="font-semibold">Time:</span> {bookingConfirmation.time}</p>
+                    <p><span className="font-semibold">Reason:</span> {bookingConfirmation.reason}</p>
+                </div>
+                <div className="flex justify-end space-x-3 mt-6">
+                    <button
+                        onClick={() => setBookingConfirmation(null)}
+                        disabled={isLoading}
+                        className="bg-gray-200 py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={confirmBooking}
+                        disabled={isLoading}
+                        className="inline-flex items-center justify-center py-2 px-4 border border-transparent shadow-md text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                    >
+                        {isLoading ? <Spinner size="sm" color="text-white"/> : 'Confirm & Book'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+  }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="AI Booking Assistant">
-        <div className="flex flex-col h-[60vh]">
-            <div className="flex-grow p-4 space-y-4 overflow-y-auto bg-gray-100/50 rounded-lg">
-                {messages.map((msg, index) => (
-                    <div key={index} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-xs md:max-w-md p-3 rounded-2xl ${msg.role === 'user' ? 'bg-primary-600 text-white rounded-br-none' : 'bg-white text-gray-800 border border-gray-200 rounded-bl-none'}`}>
-                            <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
-                        </div>
-                    </div>
-                ))}
-                {isLoading && (
-                     <div className="flex justify-start">
-                        <div className="max-w-xs md:max-w-md p-3 rounded-2xl bg-white text-gray-800 border border-gray-200 rounded-bl-none flex items-center space-x-2">
-                            <Spinner size="sm" />
-                            <span className="text-sm text-gray-500 italic">thinking...</span>
-                        </div>
-                    </div>
-                )}
-                 <div ref={messagesEndRef} />
+    <Modal isOpen={isOpen} onClose={onClose} title="AI Assistant">
+      <div className="flex flex-col h-[65vh]">
+        <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 rounded-t-lg">
+          {messages.map((msg, index) => (
+            <div key={index} className={`flex items-end gap-2 ${msg.sender === 'user' ? 'justify-end' : ''}`}>
+              {msg.sender === 'ai' && (
+                <div className="w-8 h-8 rounded-full bg-purple-500 text-white flex items-center justify-center flex-shrink-0">
+                    <SparklesIcon />
+                </div>
+              )}
+              <div
+                className={`max-w-md p-3 rounded-2xl ${
+                  msg.sender === 'user'
+                    ? 'bg-primary-600 text-white rounded-br-none'
+                    : 'bg-white text-gray-800 rounded-bl-none border border-gray-200'
+                }`}
+              >
+                {renderMessageContent(msg)}
+              </div>
             </div>
-            <form onSubmit={handleSendMessage} className="mt-4 flex items-center space-x-2">
-                 <input
-                    type="text"
-                    value={userInput}
-                    onChange={(e) => setUserInput(e.target.value)}
-                    placeholder="Type your message..."
-                    className="flex-grow block w-full rounded-md shadow-sm sm:text-sm bg-gray-100 border-gray-300 text-gray-900 focus:ring-primary-500 focus:border-primary-500 py-2 px-3"
-                    disabled={isLoading}
-                    aria-label="Chat input"
-                 />
-                 <button type="submit" disabled={isLoading || !userInput.trim()} className="inline-flex items-center justify-center p-2 border border-transparent rounded-full shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:bg-gray-400">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
-                    </svg>
-                 </button>
-            </form>
+          ))}
+          {isLoading && !bookingConfirmation && (
+            <div className="flex items-end gap-2">
+               <div className="w-8 h-8 rounded-full bg-purple-500 text-white flex items-center justify-center flex-shrink-0">
+                    <SparklesIcon />
+                </div>
+              <div className="max-w-sm p-3 rounded-2xl bg-white text-gray-800 rounded-bl-none border border-gray-200">
+                <Spinner size="sm" color="text-purple-600" />
+              </div>
+            </div>
+          )}
         </div>
+        <div className="p-4 bg-white border-t border-gray-200 rounded-b-lg">
+          <div className="flex items-center space-x-2">
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+              placeholder="Type your message..."
+              disabled={isLoading || !!bookingConfirmation}
+              className="flex-1 block w-full rounded-md shadow-sm sm:text-sm bg-gray-100 border-gray-300 text-gray-900 focus:ring-primary-500 focus:border-primary-500 py-2 px-3 disabled:bg-gray-200"
+            />
+            <button
+              onClick={handleSendMessage}
+              disabled={isLoading || !input.trim() || !!bookingConfirmation}
+              className="inline-flex items-center justify-center p-2 border border-transparent rounded-full shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="http://www.w3.org/2000/svg" fill="currentColor">
+                <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+      {renderBookingConfirmation()}
     </Modal>
   );
 };
