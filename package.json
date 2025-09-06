@@ -6,6 +6,10 @@
     "dev": "concurrently \"npm:build -- --watch\" \"cd backend && npm install && npm run dev\"",
     "build": "esbuild index.tsx --bundle --outfile=index.js --jsx=automatic"
   },
+  "dependencies": {
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
   "devDependencies": {
     "concurrently": "^8.2.2",
     "esbuild": "^0.23.0"
