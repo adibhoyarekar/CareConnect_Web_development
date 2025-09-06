@@ -1,11 +1,12 @@
 import React, { useMemo, useState } from 'react';
-import { Appointment, Doctor, Patient, AppointmentStatus, MedicalRecord, Review } from '../types';
+import { Appointment, Doctor, Patient, AppointmentStatus, MedicalRecord, Review, WorkingHours } from '../types';
 import AppointmentTable from './AppointmentTable';
 import Modal from './Modal';
 import { exportToExcel } from '../utils/excelExport';
 import MedicalRecordUploadForm from './MedicalRecordUploadForm';
 import Spinner from './Spinner';
 import { sortAppointmentsChronologically } from '../utils/sorting';
+import WorkingHoursEditor from './WorkingHoursEditor';
 
 interface DoctorDashboardProps {
   doctor: Doctor;
@@ -24,11 +25,14 @@ const DoctorProfileForm: React.FC<{doctor: Doctor, onSave: (doctor: Doctor) => P
         hospitalName: doctor.hospitalName || '',
         address: doctor.address || '',
         specialty: doctor.specialty || '',
-        availableTime: doctor.availableTime || '',
+        workingSchedule: doctor.workingSchedule || {},
     });
     const [isSaving, setIsSaving] = useState(false);
     const inputBaseClasses = "mt-1 block w-full rounded-md shadow-sm sm:text-sm bg-gray-100 border-gray-300 text-gray-900 focus:ring-primary-500 focus:border-primary-500 py-2 px-3";
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => setFormData({...formData, [e.target.name]: e.target.value});
+    const handleScheduleChange = (newSchedule: { [day: string]: WorkingHours }) => {
+        setFormData(prev => ({ ...prev, workingSchedule: newSchedule }));
+    };
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSaving(true);
@@ -51,8 +55,7 @@ const DoctorProfileForm: React.FC<{doctor: Doctor, onSave: (doctor: Doctor) => P
                 <input type="text" name="specialty" value={formData.specialty} onChange={handleChange} className={inputBaseClasses} required />
             </div>
             <div>
-                <label htmlFor="availableTime" className="block text-sm font-medium text-gray-700">Available Times</label>
-                <input type="text" name="availableTime" value={formData.availableTime} onChange={handleChange} className={inputBaseClasses} required />
+                <WorkingHoursEditor schedule={formData.workingSchedule} onChange={handleScheduleChange} />
             </div>
             <div className="flex justify-end space-x-3 pt-4">
                 <button type="button" onClick={onClose} className="bg-gray-200 py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-300 ease-in-out transform hover:scale-105 active:scale-95">Cancel</button>
@@ -128,9 +131,9 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ doctor, appointments,
 
   return (
     <>
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in-up">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="md:col-span-2 bg-white p-6 rounded-xl shadow-lg">
+        <div className="md:col-span-2 bg-white/60 backdrop-blur-xl border border-white/20 p-6 rounded-2xl shadow-3d">
           <div className="flex justify-between items-start">
             <div>
               <h2 className="text-2xl font-bold text-gray-900">Welcome, {doctor.name}</h2>
@@ -144,7 +147,7 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ doctor, appointments,
               </button>
           </div>
         </div>
-        <div className="bg-white p-6 rounded-xl shadow-lg flex flex-col justify-center items-center text-center">
+        <div className="bg-white/60 backdrop-blur-xl border border-white/20 p-6 rounded-2xl shadow-3d flex flex-col justify-center items-center text-center">
             <h3 className="text-lg font-semibold text-gray-800">Your Rating</h3>
             <p className="text-4xl font-bold text-yellow-500 mt-2">
                 {averageRating.toFixed(1)} <span className="text-2xl">⭐</span>
@@ -160,7 +163,7 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ doctor, appointments,
       </div>
 
 
-      <div className="bg-white p-6 rounded-xl shadow-lg">
+      <div className="bg-white/60 backdrop-blur-xl border border-white/20 p-6 rounded-2xl shadow-3d">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-xl font-semibold text-gray-900">Your Appointments</h3>
           <div className="flex items-center space-x-4">

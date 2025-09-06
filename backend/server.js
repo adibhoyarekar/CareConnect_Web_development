@@ -39,6 +39,23 @@ app.post('/api/login', (req, res) => {
     }
 });
 
+app.post('/api/forgot-password', (req, res) => {
+    const { email } = req.body;
+    const user = findUser(email);
+
+    if (user) {
+        // In a real app, you'd generate a secure token, save it to the DB with an expiry,
+        // and send an email with a reset link.
+        const resetToken = nanoid(32);
+        console.log(`Password reset token for ${user.email}: ${resetToken}`);
+        console.log(`Reset Link (simulation): http://localhost:3000/reset-password?token=${resetToken}`);
+    }
+
+    // Always send a generic success response to prevent email enumeration
+    res.status(200).json({ message: 'If an account with that email exists, a password reset link has been sent.' });
+});
+
+
 app.post('/api/signup', async (req, res) => {
     const details = req.body;
     if (findUser(details.email)) {
@@ -48,7 +65,7 @@ app.post('/api/signup', async (req, res) => {
     const newUser = { ...details, id: `${details.role.toLowerCase()}-${nanoid(5)}` };
     
     if (newUser.role === 'Doctor') {
-        const newDoctor = { ...newUser, specialty: '', address: '', fees: 0, mobile: '', profileComplete: false };
+        const newDoctor = { ...newUser, specialty: '', address: '', fees: 0, mobile: '', profileComplete: false, workingSchedule: {} };
         db.data.doctors.push(newDoctor);
         await db.write();
         const { password: _, ...userToReturn } = newDoctor;
@@ -86,7 +103,7 @@ app.post('/api/social-signup', async (req, res) => {
     };
 
     if (role === 'Doctor') {
-        const newDoctor = { ...newUserBase, specialty: '', address: '', fees: 0, mobile: '', profileComplete: false };
+        const newDoctor = { ...newUserBase, specialty: '', address: '', fees: 0, mobile: '', profileComplete: false, workingSchedule: {} };
         db.data.doctors.push(newDoctor);
         await db.write();
         const { password: _, ...userToReturn } = newDoctor;

@@ -84,30 +84,76 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({
   };
 
   const availableTimes = useMemo(() => {
-    if (!formData.doctorId || !formData.date) return [];
+    // Step 1: Ensure a doctor and date are selected.
+    if (!formData.doctorId || !formData.date) {
+      return [];
+    }
     
-    const standardTimes = ['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30'];
-    
-    const bookedTimes = appointments
-      .filter(appt => 
-          appt.doctorId === formData.doctorId && 
-          appt.date === formData.date &&
-          (!appointmentToEdit || appt.id !== appointmentToEdit.id)
-      )
-      .map(appt => appt.time);
-      
-    const freeSlots = standardTimes.filter(time => !bookedTimes.includes(time));
+    // Step 2: Find the selected doctor and their schedule.
+    const selectedDoctor = doctors.find(d => d.id === formData.doctorId);
+    if (!selectedDoctor?.workingSchedule) {
+      return [];
+    }
 
+    // Step 3: Determine the day of the week for the selected date.
+    // Use UTC to prevent timezone-related errors.
+    const selectedDate = new Date(`${formData.date}T00:00:00Z`);
+    const dayOfWeek = selectedDate.toLocaleString('en-US', { weekday: 'long', timeZone: 'UTC' });
+    
+    // Step 4: Check if the doctor is working on that day.
+    const scheduleForDay = selectedDoctor.workingSchedule[dayOfWeek];
+    if (!scheduleForDay || scheduleForDay.isOff) {
+      return [];
+    }
+
+    // Step 5: Generate all possible 30-minute time slots within the doctor's working hours.
+    const slots = [];
+    const { startTime, endTime } = scheduleForDay;
+    
+    // Convert time strings (e.g., "09:00") to minutes from midnight for easier calculation.
+    const timeToMinutes = (time: string) => {
+      const [hours, minutes] = time.split(':').map(Number);
+      return hours * 60 + minutes;
+    };
+    
+    const startMinutes = timeToMinutes(startTime);
+    const endMinutes = timeToMinutes(endTime);
+    const appointmentDuration = 30; // 30-minute slots
+
+    for (let minutes = startMinutes; minutes < endMinutes; minutes += appointmentDuration) {
+      const h = Math.floor(minutes / 60);
+      const m = minutes % 60;
+      const timeSlot = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+      slots.push(timeSlot);
+    }
+    
+    // Step 6: Identify already booked times for the selected doctor and date.
+    const bookedTimes = new Set(
+      appointments
+        .filter(appt => 
+            appt.doctorId === formData.doctorId && 
+            appt.date === formData.date &&
+            // Exclude the appointment being edited from the booked list
+            (!appointmentToEdit || appt.id !== appointmentToEdit.id)
+        )
+        .map(appt => appt.time)
+    );
+      
+    // Step 7: Filter out the booked slots to get available times.
+    const freeSlots = slots.filter(time => !bookedTimes.has(time));
+
+    // Step 8: If editing an existing appointment, add its original time back to the list
+    // so it can be re-selected.
     if (appointmentToEdit && 
         appointmentToEdit.doctorId === formData.doctorId &&
         appointmentToEdit.date === formData.date &&
         !freeSlots.includes(appointmentToEdit.time)) {
       freeSlots.push(appointmentToEdit.time);
-      freeSlots.sort();
+      freeSlots.sort((a, b) => a.localeCompare(b)); // Keep times sorted
     }
       
     return freeSlots;
-  }, [formData.doctorId, formData.date, appointments, appointmentToEdit]);
+  }, [formData.doctorId, formData.date, appointments, doctors, appointmentToEdit]);
   
   const today = new Date().toISOString().split('T')[0];
 

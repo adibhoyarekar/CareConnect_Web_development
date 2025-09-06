@@ -1,11 +1,28 @@
-import { Doctor, Patient, Appointment, Role, AppointmentStatus, User, MockGoogleAccount, MedicalRecord, Review, Notification, NotificationType } from './types';
+import { Doctor, Patient, Appointment, Role, AppointmentStatus, User, MockGoogleAccount, MedicalRecord, Review, Notification, NotificationType, WorkingHours } from './types';
 
 const MOCK_PASSWORD = 'password123';
 
+const defaultSchedule: { [day: string]: WorkingHours } = {
+  "Sunday": { "startTime": "09:00", "endTime": "17:00", "isOff": true },
+  "Monday": { "startTime": "09:00", "endTime": "17:00", "isOff": false },
+  "Tuesday": { "startTime": "09:00", "endTime": "17:00", "isOff": false },
+  "Wednesday": { "startTime": "09:00", "endTime": "17:00", "isOff": false },
+  "Thursday": { "startTime": "09:00", "endTime": "17:00", "isOff": false },
+  "Friday": { "startTime": "09:00", "endTime": "17:00", "isOff": false },
+  "Saturday": { "startTime": "09:00", "endTime": "17:00", "isOff": true }
+};
+
 export const MOCK_DOCTORS: Doctor[] = [
-  { id: 'doc1', name: 'Dr. John Doe', email: 'john.doe@clinic.com', role: Role.Doctor, specialty: 'Cardiologist', address: '123 Heart Lane, Cardio City', fees: 250, mobile: '123-456-7890', profileComplete: false, password: MOCK_PASSWORD },
-  { id: 'doc2', name: 'Dr. Jane Smith', email: 'jane.smith@clinic.com', role: Role.Doctor, specialty: 'Dentist', address: '456 Tooth Ave, Smile Town', fees: 150, mobile: '123-456-7891', hospitalName: 'Smile Town Dental', availableTime: 'Mon-Fri, 9am-5pm', profileComplete: true, password: MOCK_PASSWORD },
-  { id: 'doc3', name: 'Dr. Emily White', email: 'emily.white@clinic.com', role: Role.Doctor, specialty: 'Dermatologist', address: '789 Skin St, Glow Village', fees: 200, mobile: '123-456-7892', hospitalName: 'Glow Village Dermatology', availableTime: 'Tue, Thu, Fri, 10am-6pm', profileComplete: true, password: MOCK_PASSWORD },
+  { id: 'doc1', name: 'Dr. John Doe', email: 'john.doe@clinic.com', role: Role.Doctor, specialty: 'Cardiologist', address: '123 Heart Lane, Cardio City', fees: 250, mobile: '123-456-7890', profileComplete: false, password: MOCK_PASSWORD, workingSchedule: {} },
+  { id: 'doc2', name: 'Dr. Jane Smith', email: 'jane.smith@clinic.com', role: Role.Doctor, specialty: 'Dentist', address: '456 Tooth Ave, Smile Town', fees: 150, mobile: '123-456-7891', hospitalName: 'Smile Town Dental', profileComplete: true, password: MOCK_PASSWORD, workingSchedule: defaultSchedule },
+  { id: 'doc3', name: 'Dr. Emily White', email: 'emily.white@clinic.com', role: Role.Doctor, specialty: 'Dermatologist', address: '789 Skin St, Glow Village', fees: 200, mobile: '123-456-7892', hospitalName: 'Glow Village Dermatology', profileComplete: true, password: MOCK_PASSWORD, workingSchedule: {
+      ...defaultSchedule,
+      "Monday": { ...defaultSchedule.Monday, isOff: true },
+      "Wednesday": { ...defaultSchedule.Wednesday, isOff: true },
+      "Tuesday": { "startTime": "10:00", "endTime": "18:00", "isOff": false },
+      "Thursday": { "startTime": "10:00", "endTime": "18:00", "isOff": false },
+      "Friday": { "startTime": "10:00", "endTime": "18:00", "isOff": false },
+  } },
 ];
 
 export const MOCK_PATIENTS: Patient[] = [

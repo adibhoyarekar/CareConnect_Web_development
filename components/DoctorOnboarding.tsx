@@ -1,18 +1,30 @@
 import React, { useState } from 'react';
-import { Doctor } from '../types';
+import { Doctor, WorkingHours } from '../types';
 import Spinner from './Spinner';
+import WorkingHoursEditor from './WorkingHoursEditor';
 
 interface DoctorOnboardingProps {
   doctor: Doctor;
   onSave: (updatedDoctor: Doctor) => Promise<void>;
 }
 
+const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const defaultSchedule = daysOfWeek.reduce((acc, day) => {
+    acc[day] = {
+        startTime: '09:00',
+        endTime: '17:00',
+        isOff: day === 'Sunday' || day === 'Saturday'
+    };
+    return acc;
+}, {} as { [day: string]: WorkingHours });
+
+
 const DoctorOnboarding: React.FC<DoctorOnboardingProps> = ({ doctor, onSave }) => {
     const [formData, setFormData] = useState({
         hospitalName: doctor.hospitalName || '',
         address: doctor.address || '',
         specialty: doctor.specialty || '',
-        availableTime: doctor.availableTime || '',
+        workingSchedule: doctor.workingSchedule && Object.keys(doctor.workingSchedule).length > 0 ? doctor.workingSchedule : defaultSchedule,
     });
     const [isSaving, setIsSaving] = useState(false);
     
@@ -21,6 +33,10 @@ const DoctorOnboarding: React.FC<DoctorOnboardingProps> = ({ doctor, onSave }) =
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleScheduleChange = (newSchedule: { [day: string]: WorkingHours }) => {
+        setFormData(prev => ({ ...prev, workingSchedule: newSchedule }));
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -78,16 +94,7 @@ const DoctorOnboarding: React.FC<DoctorOnboardingProps> = ({ doctor, onSave }) =
                     />
                 </div>
                 <div>
-                    <label htmlFor="availableTime" className="block text-sm font-medium text-gray-700">Available Times (e.g., Mon-Fri, 9am-5pm)</label>
-                    <input
-                        type="text"
-                        id="availableTime"
-                        name="availableTime"
-                        value={formData.availableTime}
-                        onChange={handleChange}
-                        className={inputBaseClasses}
-                        required
-                    />
+                    <WorkingHoursEditor schedule={formData.workingSchedule} onChange={handleScheduleChange} />
                 </div>
                 <div className="flex justify-end pt-4">
                     <button

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Doctor } from '../types';
+import { Doctor, WorkingHours } from '../types';
 import Spinner from './Spinner';
+import WorkingHoursEditor from './WorkingHoursEditor';
 
 interface DoctorProfileProps {
   doctor: Doctor;
@@ -17,7 +18,7 @@ const DoctorProfile: React.FC<DoctorProfileProps> = ({ doctor, onSave, onBack })
         specialty: doctor.specialty || '',
         hospitalName: doctor.hospitalName || '',
         address: doctor.address || '',
-        availableTime: doctor.availableTime || '',
+        workingSchedule: doctor.workingSchedule || {},
         mobile: doctor.mobile || '',
         fees: doctor.fees || 0,
     });
@@ -27,6 +28,10 @@ const DoctorProfile: React.FC<DoctorProfileProps> = ({ doctor, onSave, onBack })
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleScheduleChange = (newSchedule: { [day: string]: WorkingHours }) => {
+        setFormData(prev => ({ ...prev, workingSchedule: newSchedule }));
     };
 
     const handleSave = async (e: React.FormEvent) => {
@@ -49,7 +54,7 @@ const DoctorProfile: React.FC<DoctorProfileProps> = ({ doctor, onSave, onBack })
             specialty: doctor.specialty || '',
             hospitalName: doctor.hospitalName || '',
             address: doctor.address || '',
-            availableTime: doctor.availableTime || '',
+            workingSchedule: doctor.workingSchedule || {},
             mobile: doctor.mobile || '',
             fees: doctor.fees || 0,
         });
@@ -97,7 +102,7 @@ const DoctorProfile: React.FC<DoctorProfileProps> = ({ doctor, onSave, onBack })
                         <label htmlFor="address" className="block text-sm font-medium text-gray-700">Work Address</label>
                         <input type="text" id="address" name="address" value={formData.address} onChange={handleChange} className={inputBaseClasses} disabled={!isEditing} />
                     </div>
-                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
                             <label htmlFor="mobile" className="block text-sm font-medium text-gray-700">Mobile Number</label>
                             <input type="tel" id="mobile" name="mobile" value={formData.mobile} onChange={handleChange} className={inputBaseClasses} disabled={!isEditing} />
@@ -106,10 +111,10 @@ const DoctorProfile: React.FC<DoctorProfileProps> = ({ doctor, onSave, onBack })
                             <label htmlFor="fees" className="block text-sm font-medium text-gray-700">Consultation Fees ($)</label>
                             <input type="number" id="fees" name="fees" value={formData.fees} onChange={handleChange} className={inputBaseClasses} disabled={!isEditing} />
                         </div>
-                        <div>
-                            <label htmlFor="availableTime" className="block text-sm font-medium text-gray-700">Available Times</label>
-                            <input type="text" id="availableTime" name="availableTime" value={formData.availableTime} onChange={handleChange} className={inputBaseClasses} disabled={!isEditing} placeholder="e.g., Mon-Fri, 9am-5pm" />
-                        </div>
+                    </div>
+
+                     <div>
+                        <WorkingHoursEditor schedule={formData.workingSchedule} onChange={handleScheduleChange} disabled={!isEditing} />
                     </div>
                     
                     <div className="flex justify-end space-x-4 pt-4 border-t border-gray-200">

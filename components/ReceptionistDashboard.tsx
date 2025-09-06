@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { Appointment, Patient, Doctor, AppointmentStatus, Role, Review, MedicalRecord } from '../types';
+import React, { useState, useMemo } from 'react';
+import { Appointment, Doctor, Patient, Role, AppointmentStatus, MedicalRecord, Review } from '../types';
 import AppointmentTable from './AppointmentTable';
 import Modal from './Modal';
 import AppointmentForm from './AppointmentForm';
@@ -10,166 +10,186 @@ interface ReceptionistDashboardProps {
   appointments: Appointment[];
   patients: Patient[];
   doctors: Doctor[];
-  reviews: Review[];
   medicalRecords: MedicalRecord[];
+  reviews: Review[];
   updateAppointment: (appointment: Appointment) => Promise<void>;
   addAppointment: (appointment: Omit<Appointment, 'id'>) => Promise<void>;
   deleteAppointment: (id: string) => Promise<void>;
 }
 
-const ReceptionistDashboard: React.FC<ReceptionistDashboardProps> = ({ appointments, patients, doctors, reviews, medicalRecords, updateAppointment, addAppointment, deleteAppointment }) => {
-  const [filter, setFilter] = useState<AppointmentStatus | 'All'>('All');
-  const [searchTerm, setSearchTerm] = useState('');
+const ReceptionistDashboard: React.FC<ReceptionistDashboardProps> = ({
+  appointments,
+  patients,
+  doctors,
+  reviews,
+  updateAppointment,
+  addAppointment,
+  deleteAppointment,
+}) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
+  const [appointmentToEdit, setAppointmentToEdit] = useState<Appointment | null>(null);
+  const [filter, setFilter] = useState<{ status: AppointmentStatus | 'All'; doctorId: string | 'All' }>({
+    status: 'All',
+    doctorId: 'All',
+  });
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [appointmentToDelete, setAppointmentToDelete] = useState<string | null>(null);
+
 
   const filteredAppointments = useMemo(() => {
-    const filtered = appointments
-      .filter(appt => {
-        const patient = patients.find(p => p.id === appt.patientId);
-        const doctor = doctors.find(d => d.id === appt.doctorId);
-        const patientName = patient?.name.toLowerCase() || '';
-        const doctorName = doctor?.name.toLowerCase() || '';
-        const lowerCaseSearch = searchTerm.toLowerCase();
-
-        const matchesSearch = patientName.includes(lowerCaseSearch) || doctorName.includes(lowerCaseSearch);
-        const matchesFilter = filter === 'All' || appt.status === filter;
-
-        return matchesSearch && matchesFilter;
-      });
-      
+    const filtered = appointments.filter(appt => {
+      const statusMatch = filter.status === 'All' || appt.status === filter.status;
+      const doctorMatch = filter.doctorId === 'All' || appt.doctorId === filter.doctorId;
+      return statusMatch && doctorMatch;
+    });
     return sortAppointmentsChronologically(filtered);
-  }, [appointments, patients, doctors, filter, searchTerm]);
+  }, [appointments, filter]);
 
+  const handleSaveAppointment = async (appointmentData: Omit<Appointment, 'id'> | Appointment) => {
+    if ('id' in appointmentData) {
+      await updateAppointment(appointmentData);
+    } else {
+      await addAppointment(appointmentData);
+    }
+    setIsModalOpen(false);
+    setAppointmentToEdit(null);
+  };
+
+  const handleEditAppointment = (appointment: Appointment) => {
+    setAppointmentToEdit(appointment);
+    setIsModalOpen(true);
+  };
+  
+  const openDeleteConfirmation = (id: string) => {
+    setAppointmentToDelete(id);
+    setIsDeleteConfirmOpen(true);
+  };
+
+  const handleDeleteAppointment = async () => {
+    if (appointmentToDelete) {
+      await deleteAppointment(appointmentToDelete);
+      setIsDeleteConfirmOpen(false);
+      setAppointmentToDelete(null);
+    }
+  };
+  
   const handleStatusChange = (id: string, status: AppointmentStatus) => {
     const appointmentToUpdate = appointments.find(appt => appt.id === id);
     if (appointmentToUpdate) {
       updateAppointment({ ...appointmentToUpdate, status });
     }
   };
-  
+
   const handleExport = () => {
     exportToExcel(filteredAppointments, patients, doctors);
-  }
-
-  const handleOpenModal = (appointment: Appointment | null) => {
-    setEditingAppointment(appointment);
-    setIsModalOpen(true);
-  };
-
-  const handleCloseModal = () => {
-    setEditingAppointment(null);
-    setIsModalOpen(false);
-  };
-  
-  const handleSaveAppointment = async (appointmentData: Omit<Appointment, 'id'> | Appointment) => {
-    if ('id' in appointmentData) {
-        await updateAppointment(appointmentData);
-    } else {
-        await addAppointment(appointmentData);
-    }
-    handleCloseModal();
-  };
-
-  const handleDeleteAppointment = async (id: string) => {
-    if (window.confirm('Are you sure you want to delete this appointment?')) {
-        await deleteAppointment(id);
-    }
   };
 
   const stats = useMemo(() => {
     const total = appointments.length;
     const pending = appointments.filter(a => a.status === AppointmentStatus.Pending).length;
-    const today = new Date().toISOString().split('T')[0];
-    const confirmedToday = appointments.filter(a => a.status === AppointmentStatus.Confirmed && a.date === today).length;
+    const confirmed = appointments.filter(a => a.status === AppointmentStatus.Confirmed).length;
     const completed = appointments.filter(a => a.status === AppointmentStatus.Completed).length;
-    return { total, pending, confirmedToday, completed };
+    return { total, pending, confirmed, completed };
   }, [appointments]);
 
   return (
     <>
-      <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <StatCard title="Total Appointments" value={stats.total} />
-            <StatCard title="Pending Confirmation" value={stats.pending} color="yellow" />
-            <StatCard title="Confirmed for Today" value={stats.confirmedToday} color="green" />
-            <StatCard title="Total Completed" value={stats.completed} color="blue" />
-        </div>
-
-        <div className="bg-white p-6 rounded-xl shadow-lg">
-          <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-4">
-            <h3 className="text-xl font-semibold text-gray-900">Manage Appointments</h3>
-             <input
-                type="text"
-                placeholder="Search by patient or doctor..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full md:w-64 block pl-3 pr-10 py-2 text-base rounded-md sm:text-sm bg-gray-100 border-gray-300 text-gray-900 focus:ring-primary-500 focus:border-primary-500"
-            />
-          </div>
-          <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-4">
-            <div className="flex items-center space-x-4">
-               <select 
-                 value={filter} 
-                 onChange={(e) => setFilter(e.target.value as AppointmentStatus | 'All')}
-                 className="block pl-3 pr-10 py-2 text-base rounded-md sm:text-sm bg-gray-100 border-gray-300 text-gray-900 focus:ring-primary-500 focus:border-primary-500"
-               >
-                 <option value="All">All Statuses</option>
-                 {Object.values(AppointmentStatus).map(status => (
-                   <option key={status} value={status}>{status}</option>
-                 ))}
-               </select>
-            </div>
-            <div className="flex items-center space-x-2">
-                <button onClick={() => handleOpenModal(null)} className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-lg active:scale-95">
-                    Add Appointment
-                </button>
-                <button onClick={handleExport} className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500">
-                    Export to Excel
-                </button>
-            </div>
-          </div>
-          <AppointmentTable
-            appointments={filteredAppointments}
-            patients={patients}
-            doctors={doctors}
-            currentUserRole={Role.Receptionist}
-            onStatusChange={handleStatusChange}
-            onEditAppointment={(appt) => handleOpenModal(appt)}
-            onDeleteAppointment={handleDeleteAppointment}
-          />
-        </div>
+    <div className="space-y-6 animate-fade-in-up">
+      <div className="bg-white/60 backdrop-blur-xl border border-white/20 p-6 rounded-2xl shadow-3d">
+        <h2 className="text-2xl font-bold text-gray-900">Receptionist Dashboard</h2>
+        <p className="text-gray-600 mt-2">Manage all patient appointments and records efficiently.</p>
       </div>
-      <Modal isOpen={isModalOpen} onClose={handleCloseModal} title={editingAppointment ? 'Edit Appointment' : 'Add New Appointment'}>
-        <AppointmentForm 
-            appointments={appointments}
-            patients={patients}
-            doctors={doctors}
-            reviews={reviews}
-            onSave={handleSaveAppointment}
-            onClose={handleCloseModal}
-            currentUserId={'rec1'} // Receptionist ID, not crucial for this form
-            currentUserRole={Role.Receptionist}
-            appointmentToEdit={editingAppointment}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="bg-white/60 backdrop-blur-xl border border-white/20 p-5 rounded-2xl shadow-3d"><h3 className="text-sm font-medium text-gray-500">Total Appointments</h3><p className="mt-2 text-3xl font-bold text-gray-900">{stats.total}</p></div>
+        <div className="bg-white/60 backdrop-blur-xl border border-white/20 p-5 rounded-2xl shadow-3d"><h3 className="text-sm font-medium text-yellow-500">Pending</h3><p className="mt-2 text-3xl font-bold text-yellow-400">{stats.pending}</p></div>
+        <div className="bg-white/60 backdrop-blur-xl border border-white/20 p-5 rounded-2xl shadow-3d"><h3 className="text-sm font-medium text-green-500">Confirmed</h3><p className="mt-2 text-3xl font-bold text-green-400">{stats.confirmed}</p></div>
+        <div className="bg-white/60 backdrop-blur-xl border border-white/20 p-5 rounded-2xl shadow-3d"><h3 className="text-sm font-medium text-blue-500">Completed</h3><p className="mt-2 text-3xl font-bold text-blue-400">{stats.completed}</p></div>
+      </div>
+
+      <div className="bg-white/60 backdrop-blur-xl border border-white/20 p-6 rounded-2xl shadow-3d">
+        <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
+          <h3 className="text-xl font-semibold text-gray-900">All Appointments</h3>
+          <div className="flex items-center space-x-2 sm:space-x-4">
+            <select
+              value={filter.status}
+              onChange={e => setFilter(f => ({ ...f, status: e.target.value as AppointmentStatus | 'All' }))}
+              className="block pl-3 pr-10 py-2 text-base rounded-md sm:text-sm bg-gray-100 border-gray-300 text-gray-900 focus:ring-primary-500 focus:border-primary-500"
+            >
+              <option value="All">All Statuses</option>
+              {Object.values(AppointmentStatus).map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <select
+              value={filter.doctorId}
+              onChange={e => setFilter(f => ({ ...f, doctorId: e.target.value }))}
+              className="block pl-3 pr-10 py-2 text-base rounded-md sm:text-sm bg-gray-100 border-gray-300 text-gray-900 focus:ring-primary-500 focus:border-primary-500"
+            >
+              <option value="All">All Doctors</option>
+              {doctors.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+            </select>
+            <button
+              onClick={handleExport}
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+            >
+              Export
+            </button>
+            <button
+              onClick={() => { setAppointmentToEdit(null); setIsModalOpen(true); }}
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+            >
+              New Appointment
+            </button>
+          </div>
+        </div>
+        <AppointmentTable
+          appointments={filteredAppointments}
+          patients={patients}
+          doctors={doctors}
+          currentUserRole={Role.Receptionist}
+          onStatusChange={handleStatusChange}
+          onEditAppointment={handleEditAppointment}
+          onDeleteAppointment={openDeleteConfirmation}
+        />
+      </div>
+
+      <Modal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setAppointmentToEdit(null); }} title={appointmentToEdit ? 'Edit Appointment' : 'Book New Appointment'}>
+        <AppointmentForm
+          appointments={appointments}
+          patients={patients}
+          doctors={doctors}
+          reviews={reviews}
+          onSave={handleSaveAppointment}
+          onClose={() => { setIsModalOpen(false); setAppointmentToEdit(null); }}
+          currentUserId="" // Not applicable
+          currentUserRole={Role.Receptionist}
+          appointmentToEdit={appointmentToEdit}
         />
       </Modal>
+
+       <Modal isOpen={isDeleteConfirmOpen} onClose={() => setIsDeleteConfirmOpen(false)} title="Confirm Deletion">
+          <div>
+            <p className="text-gray-700">Are you sure you want to delete this appointment? This action cannot be undone.</p>
+            <div className="flex justify-end space-x-3 mt-6">
+              <button
+                type="button"
+                onClick={() => setIsDeleteConfirmOpen(false)}
+                className="bg-gray-200 py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteAppointment}
+                className="inline-flex justify-center py-2 px-4 border border-transparent shadow-md text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+       </Modal>
+    </div>
     </>
   );
 };
-
-const StatCard: React.FC<{title: string, value: number, color?: string}> = ({ title, value, color = 'indigo' }) => {
-    const colors: {[key: string]: string} = {
-        indigo: 'from-indigo-500 to-purple-600',
-        yellow: 'from-yellow-400 to-amber-500',
-        green: 'from-green-400 to-emerald-500',
-        blue: 'from-blue-400 to-cyan-500'
-    };
-    return (
-         <div className={`bg-gradient-to-br ${colors[color]} p-6 rounded-xl shadow-lg text-white`}>
-            <h4 className="text-sm font-medium uppercase tracking-wider">{title}</h4>
-            <p className="text-4xl font-bold mt-2">{value}</p>
-        </div>
-    )
-}
 
 export default ReceptionistDashboard;

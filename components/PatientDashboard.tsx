@@ -68,8 +68,8 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ patient, appointmen
   const upcomingAppointment = patientAppointments.find(a => new Date(`${a.date}T${a.time}`) > new Date() && a.status === AppointmentStatus.Confirmed);
 
   return (
-    <div className="space-y-6">
-      <div className="bg-white p-6 rounded-xl shadow-lg">
+    <div className="space-y-6 animate-fade-in-up">
+      <div className="bg-white/60 backdrop-blur-xl border border-white/20 p-6 rounded-2xl shadow-3d">
         <h2 className="text-2xl font-bold text-gray-900">Welcome, {patient.name}</h2>
         {upcomingAppointment ? (
             <p className="text-gray-600 mt-2">
@@ -80,7 +80,7 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ patient, appointmen
         )}
       </div>
 
-      <div className="bg-white p-6 rounded-xl shadow-lg">
+      <div className="bg-white/60 backdrop-blur-xl border border-white/20 p-6 rounded-2xl shadow-3d">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-xl font-semibold text-gray-900">Your Appointments</h3>
           <button
@@ -100,7 +100,7 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ patient, appointmen
         />
       </div>
 
-      <div className="bg-white p-6 rounded-xl shadow-lg">
+      <div className="bg-white/60 backdrop-blur-xl border border-white/20 p-6 rounded-2xl shadow-3d">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-xl font-semibold text-gray-900">Your Medical Records</h3>
           <button

@@ -1,8 +1,24 @@
 {
   "doctors": [
-    { "id": "doc1", "name": "Dr. John Doe", "email": "john.doe@clinic.com", "role": "Doctor", "specialty": "Cardiologist", "address": "123 Heart Lane, Cardio City", "fees": 250, "mobile": "123-456-7890", "profileComplete": false, "password": "password123" },
-    { "id": "doc2", "name": "Dr. Jane Smith", "email": "jane.smith@clinic.com", "role": "Doctor", "specialty": "Dentist", "address": "456 Tooth Ave, Smile Town", "fees": 150, "mobile": "123-456-7891", "hospitalName": "Smile Town Dental", "availableTime": "Mon-Fri, 9am-5pm", "profileComplete": true, "password": "password123" },
-    { "id": "doc3", "name": "Dr. Emily White", "email": "emily.white@clinic.com", "role": "Doctor", "specialty": "Dermatologist", "address": "789 Skin St, Glow Village", "fees": 200, "mobile": "123-456-7892", "hospitalName": "Glow Village Dermatology", "availableTime": "Tue, Thu, Fri, 10am-6pm", "profileComplete": true, "password": "password123" }
+    { "id": "doc1", "name": "Dr. John Doe", "email": "john.doe@clinic.com", "role": "Doctor", "specialty": "Cardiologist", "address": "123 Heart Lane, Cardio City", "fees": 250, "mobile": "123-456-7890", "profileComplete": false, "password": "password123", "workingSchedule": {} },
+    { "id": "doc2", "name": "Dr. Jane Smith", "email": "jane.smith@clinic.com", "role": "Doctor", "specialty": "Dentist", "address": "456 Tooth Ave, Smile Town", "fees": 150, "mobile": "123-456-7891", "hospitalName": "Smile Town Dental", "profileComplete": true, "password": "password123", "workingSchedule": {
+      "Sunday": { "startTime": "09:00", "endTime": "17:00", "isOff": true },
+      "Monday": { "startTime": "09:00", "endTime": "17:00", "isOff": false },
+      "Tuesday": { "startTime": "09:00", "endTime": "17:00", "isOff": false },
+      "Wednesday": { "startTime": "09:00", "endTime": "17:00", "isOff": false },
+      "Thursday": { "startTime": "09:00", "endTime": "17:00", "isOff": false },
+      "Friday": { "startTime": "09:00", "endTime": "17:00", "isOff": false },
+      "Saturday": { "startTime": "09:00", "endTime": "17:00", "isOff": true }
+    } },
+    { "id": "doc3", "name": "Dr. Emily White", "email": "emily.white@clinic.com", "role": "Doctor", "specialty": "Dermatologist", "address": "789 Skin St, Glow Village", "fees": 200, "mobile": "123-456-7892", "hospitalName": "Glow Village Dermatology", "profileComplete": true, "password": "password123", "workingSchedule": {
+        "Sunday": { "startTime": "09:00", "endTime": "17:00", "isOff": true },
+        "Monday": { "startTime": "09:00", "endTime": "17:00", "isOff": true },
+        "Tuesday": { "startTime": "10:00", "endTime": "18:00", "isOff": false },
+        "Wednesday": { "startTime": "09:00", "endTime": "17:00", "isOff": true },
+        "Thursday": { "startTime": "10:00", "endTime": "18:00", "isOff": false },
+        "Friday": { "startTime": "10:00", "endTime": "18:00", "isOff": false },
+        "Saturday": { "startTime": "09:00", "endTime": "17:00", "isOff": true }
+    } }
   ],
   "patients": [
     { "id": "pat1", "name": "Alice Johnson", "email": "alice@email.com", "role": "Patient", "age": 0, "gender": "Other", "contact": "", "medicalNotes": "Allergic to penicillin.", "profileComplete": false, "password": "password123", "weight": 0 },

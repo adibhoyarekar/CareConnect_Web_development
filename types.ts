@@ -20,13 +20,19 @@ export interface User {
   password?: string;
 }
 
+export interface WorkingHours {
+  startTime: string; // "HH:mm" format
+  endTime: string;   // "HH:mm" format
+  isOff: boolean;
+}
+
 export interface Doctor extends User {
   specialty: string;
   address: string;
   fees: number;
   mobile: string;
   hospitalName?: string;
-  availableTime?: string;
+  workingSchedule?: { [day: string]: WorkingHours };
   profileComplete?: boolean;
 }
 
