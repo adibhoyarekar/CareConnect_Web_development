@@ -32,6 +32,8 @@ const Header: React.FC<HeaderProps> = ({ user, onLogout, notifications, onMarkNo
     }
     return name.substring(0, 2).toUpperCase();
   };
+  
+  const profilePhotoUrl = (user as Doctor | Patient).profilePhotoUrl;
 
   return (
     <header className="bg-white/80 backdrop-blur-lg shadow-md sticky top-0 z-40">
@@ -47,6 +49,7 @@ const Header: React.FC<HeaderProps> = ({ user, onLogout, notifications, onMarkNo
             <NotificationBell 
               notifications={notifications} 
               onMarkAsRead={onMarkNotificationAsRead} 
+              // FIX: The prop passed from the parent component is onMarkAllNotificationsAsRead, but the variable used was onMarkAllAsRead.
               onMarkAllAsRead={onMarkAllNotificationsAsRead} 
             />
 
@@ -60,9 +63,13 @@ const Header: React.FC<HeaderProps> = ({ user, onLogout, notifications, onMarkNo
                   aria-haspopup="true"
                 >
                   <span className="sr-only">Open user menu</span>
-                  <div className="w-10 h-10 rounded-full bg-primary-600 flex items-center justify-center text-white font-bold text-lg">
-                    {getInitials(user.name)}
-                  </div>
+                  {profilePhotoUrl ? (
+                    <img src={profilePhotoUrl} alt="Profile" className="w-10 h-10 rounded-full object-cover bg-gray-200" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-primary-600 flex items-center justify-center text-white font-bold text-lg">
+                      {getInitials(user.name)}
+                    </div>
+                  )}
                   <div className="hidden md:flex flex-col items-start">
                       <span className="font-semibold text-gray-800">{user.name}</span>
                       <span className="text-xs text-gray-500">{user.role}</span>

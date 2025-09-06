@@ -33,6 +33,7 @@ export interface Doctor extends User {
   mobile: string;
   hospitalName?: string;
   workingSchedule?: { [day: string]: WorkingHours };
+  profilePhotoUrl?: string;
   profileComplete?: boolean;
 }
 
@@ -50,6 +51,7 @@ export interface Patient extends User {
   contact: string;
   medicalNotes?: string;
   weight?: number;
+  profilePhotoUrl?: string;
   profileComplete?: boolean;
   healthHistory?: HealthHistoryItem[];
 }

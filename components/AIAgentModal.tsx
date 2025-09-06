@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-// FIX: Import GoogleGenAI and Type for Gemini API integration.
-import { GoogleGenAI, Type } from "@google/genai";
+// FIX: Import GoogleGenAI, Type, and Chat for a stateful conversational experience.
+import { GoogleGenAI, Type, Chat } from "@google/genai";
 import { Appointment, Doctor, Patient, AppointmentStatus } from '../types';
 import Modal from './Modal';
 import Spinner from './Spinner';
@@ -28,7 +28,6 @@ interface AppointmentSuggestion {
   reason: string;
 }
 
-// FIX: Initialize the GoogleGenAI client as per the guidelines.
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const AIAgentModal: React.FC<AIAgentModalProps> = ({
@@ -43,23 +42,58 @@ const AIAgentModal: React.FC<AIAgentModalProps> = ({
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [bookingConfirmation, setBookingConfirmation] = useState<AppointmentSuggestion | null>(null);
+  // FIX: Add state to hold the stateful chat instance.
+  const [chat, setChat] = useState<Chat | null>(null);
 
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
+  // FIX: Initialize a new stateful chat session when the modal is opened.
   useEffect(() => {
     if (isOpen) {
-      const upcomingAppointment = appointments.find(a => 
-          a.patientId === patient.id && 
-          new Date(a.date) >= new Date() &&
-          (a.status === AppointmentStatus.Confirmed || a.status === AppointmentStatus.Pending)
-      );
+      // Initialize the chat session with a system prompt and response schema.
+      const systemInstruction = generateSystemPrompt();
+      const responseSchema = getResponseSchema();
+      const newChat = ai.chats.create({
+        model: 'gemini-2.5-flash',
+        config: {
+          systemInstruction,
+          responseMimeType: 'application/json',
+          responseSchema,
+        },
+      });
+      setChat(newChat);
       
-      let greeting = `Hello, ${patient.name}! I'm your AI assistant for CareConnect.`;
-      if (upcomingAppointment) {
-          const doctorName = doctors.find(d => d.id === upcomingAppointment.doctorId)?.name || 'a doctor';
-          greeting += ` I see you have an upcoming appointment with ${doctorName} on ${new Date(upcomingAppointment.date).toLocaleDateString(undefined, {month: 'long', day: 'numeric', timeZone: 'UTC'})}.`;
+      // Set the initial greeting message.
+      const todayStr = new Date().toISOString().split('T')[0];
+
+      const patientUpcomingAppointments = appointments
+        .filter(a => 
+            a.patientId === patient.id &&
+            (a.status === AppointmentStatus.Confirmed || a.status === AppointmentStatus.Pending) &&
+            a.date >= todayStr
+        )
+        .sort((a, b) => {
+            const dateTimeA = new Date(`${a.date}T${a.time}`).getTime();
+            const dateTimeB = new Date(`${b.date}T${b.time}`).getTime();
+            return dateTimeA - dateTimeB;
+        });
+
+      const nextAppointment = patientUpcomingAppointments.length > 0 ? patientUpcomingAppointments[0] : null;
+
+      let greeting = `Hello, ${patient.name}! `;
+
+      if (nextAppointment) {
+          const doctorName = doctors.find(d => d.id === nextAppointment.doctorId)?.name || 'a doctor';
+          const appointmentDate = new Date(nextAppointment.date).toLocaleDateString(undefined, {
+              weekday: 'long',
+              month: 'long',
+              day: 'numeric',
+              timeZone: 'UTC'
+          });
+          greeting += `I see you have an upcoming appointment with ${doctorName} on ${appointmentDate} at ${nextAppointment.time}. How can I help you today? You can ask me about this appointment, schedule a new one, or ask other questions.`;
+      } else {
+          greeting += `Welcome to the CareConnect AI assistant. How can I help you today? I can help you book an appointment, find a doctor, or answer questions about our clinic.`;
       }
-      greeting += "\n\nHow can I help you today? I can book an appointment, provide information about our doctors, or answer general questions."
 
       setMessages([ { sender: 'ai', text: greeting } ]);
       setInput('');
@@ -74,6 +108,35 @@ const AIAgentModal: React.FC<AIAgentModalProps> = ({
     }
   }, [messages]);
 
+
+  const getResponseSchema = () => ({
+    type: Type.OBJECT,
+    properties: {
+      response_type: {
+        type: Type.STRING,
+        description: "Either 'clarification' or 'suggestion'. Use 'clarification' if you need more information or are answering a question, 'suggestion' if you are providing appointment options.",
+      },
+      message: {
+        type: Type.STRING,
+        description: "A friendly, conversational message to display to the user.",
+      },
+      suggestions: {
+        type: Type.ARRAY,
+        description: "An array of up to 5 appointment suggestions. This should be empty if response_type is 'clarification'.",
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            doctorId: { type: Type.STRING, description: "The ID of the suggested doctor." },
+            date: { type: Type.STRING, description: "The date of the appointment in YYYY-MM-DD format." },
+            time: { type: Type.STRING, description: "The time of the appointment in HH:mm format." },
+            reason: { type: Type.STRING, description: "A concise reason for the visit based on the user's query." },
+          },
+          required: ["doctorId", "date", "time", "reason"],
+        },
+      },
+    },
+    required: ["response_type", "message"],
+  });
 
   const generateSystemPrompt = () => {
     const today = new Date().toISOString().split('T')[0];
@@ -102,6 +165,10 @@ const AIAgentModal: React.FC<AIAgentModalProps> = ({
     Clinic Information:
     - Doctors: ${JSON.stringify(availableDoctors, null, 2)}
     - Existing Booked Appointments (unavailable slots): ${JSON.stringify(bookedSlots, null, 2)}
+    
+    Conversational Context:
+    - You MUST maintain context throughout the conversation. Remember previous questions and answers to handle follow-up questions naturally. For example, if a user asks "What about Dr. Smith?" after asking about cardiologists, you should understand they are asking about Dr. Smith's specialty.
+    - When providing information, be thorough but not overly verbose. You can offer to provide more details if the user asks.
 
     Core Tasks:
     1.  Answer general questions: Provide helpful information based on the provided clinic data or your general knowledge for health FAQs.
@@ -119,7 +186,8 @@ const AIAgentModal: React.FC<AIAgentModalProps> = ({
   };
 
   const handleSendMessage = async () => {
-    if (!input.trim() || isLoading) return;
+    // FIX: Check for the existence of the chat instance.
+    if (!input.trim() || isLoading || !chat) return;
 
     const userMessage: Message = { sender: 'user', text: input };
     setMessages(prev => [...prev, userMessage]);
@@ -127,48 +195,8 @@ const AIAgentModal: React.FC<AIAgentModalProps> = ({
     setIsLoading(true);
 
     try {
-      const systemInstruction = generateSystemPrompt();
-      const userPrompt = userMessage.text;
-
-      const responseSchema = {
-        type: Type.OBJECT,
-        properties: {
-          response_type: {
-            type: Type.STRING,
-            description: "Either 'clarification' or 'suggestion'. Use 'clarification' if you need more information or are answering a question, 'suggestion' if you are providing appointment options.",
-          },
-          message: {
-            type: Type.STRING,
-            description: "A friendly, conversational message to display to the user.",
-          },
-          suggestions: {
-            type: Type.ARRAY,
-            description: "An array of up to 5 appointment suggestions. This should be empty if response_type is 'clarification'.",
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                doctorId: { type: Type.STRING, description: "The ID of the suggested doctor." },
-                date: { type: Type.STRING, description: "The date of the appointment in YYYY-MM-DD format." },
-                time: { type: Type.STRING, description: "The time of the appointment in HH:mm format." },
-                reason: { type: Type.STRING, description: "A concise reason for the visit based on the user's query." },
-              },
-              required: ["doctorId", "date", "time", "reason"],
-            },
-          },
-        },
-        required: ["response_type", "message"],
-      };
-
-      // FIX: Call the Gemini API using generateContent with a response schema for structured output.
-      const result = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: userPrompt,
-        config: {
-            systemInstruction: systemInstruction,
-            responseMimeType: 'application/json',
-            responseSchema: responseSchema,
-        },
-      });
+      // FIX: Use the stateful chat.sendMessage method to maintain conversation history.
+      const result = await chat.sendMessage({ message: userMessage.text });
 
       const jsonString = result.text.trim();
       const parsedResponse = JSON.parse(jsonString);

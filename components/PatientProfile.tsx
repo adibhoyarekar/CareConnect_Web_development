@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Patient, HealthHistoryItem } from '../types';
 import Spinner from './Spinner';
 import HealthHistoryManager from './HealthHistoryManager';
+import ProfilePhotoUploader from './ProfilePhotoUploader';
 
 interface PatientProfileProps {
   patient: Patient;
@@ -12,6 +13,7 @@ interface PatientProfileProps {
 const PatientProfile: React.FC<PatientProfileProps> = ({ patient, onSave, onBack }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const [isPhotoUploaderOpen, setIsPhotoUploaderOpen] = useState(false);
     const [formData, setFormData] = useState({
         name: patient.name,
         email: patient.email,
@@ -21,6 +23,7 @@ const PatientProfile: React.FC<PatientProfileProps> = ({ patient, onSave, onBack
         weight: patient.weight || '',
         medicalNotes: patient.medicalNotes || '',
         healthHistory: patient.healthHistory || [],
+        profilePhotoUrl: patient.profilePhotoUrl || '',
     });
     
     const inputBaseClasses = "mt-1 block w-full rounded-md shadow-sm sm:text-sm bg-gray-100 border-gray-300 text-gray-900 focus:ring-primary-500 focus:border-primary-500 py-2 px-3 disabled:bg-gray-200 disabled:text-gray-500";
@@ -61,14 +64,39 @@ const PatientProfile: React.FC<PatientProfileProps> = ({ patient, onSave, onBack
             weight: patient.weight || '',
             medicalNotes: patient.medicalNotes || '',
             healthHistory: patient.healthHistory || [],
+            profilePhotoUrl: patient.profilePhotoUrl || '',
         });
         setIsEditing(false);
     }
     
     return (
+      <>
         <div className="max-w-4xl mx-auto bg-white p-8 rounded-xl shadow-lg animate-modal-in">
-            <div className="flex justify-between items-center mb-6">
-                <h2 className="text-3xl font-bold text-gray-900">My Profile</h2>
+            <div className="flex flex-col sm:flex-row justify-between items-start mb-6 gap-4">
+                <div className="flex items-center space-x-4">
+                    <div className="relative">
+                        <img 
+                            src={formData.profilePhotoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(patient.name)}&background=cffafe&color=0e7490&size=128`}
+                            alt="Profile"
+                            className="w-24 h-24 rounded-full object-cover bg-gray-200 border-4 border-white shadow-md"
+                        />
+                        {isEditing && (
+                            <button
+                                type="button"
+                                onClick={() => setIsPhotoUploaderOpen(true)}
+                                className="absolute bottom-0 right-0 bg-primary-600 text-white rounded-full p-2 hover:bg-primary-700 transition-colors shadow"
+                                aria-label="Change profile photo"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg>
+                            </button>
+                        )}
+                    </div>
+                    <div>
+                        <h2 className="text-3xl font-bold text-gray-900">{formData.name}</h2>
+                        <p className="text-gray-500">{formData.email}</p>
+                    </div>
+                </div>
+
                 {!isEditing && (
                     <button
                         onClick={() => setIsEditing(true)}
@@ -144,6 +172,15 @@ const PatientProfile: React.FC<PatientProfileProps> = ({ patient, onSave, onBack
                 </div>
             </form>
         </div>
+        <ProfilePhotoUploader 
+          isOpen={isPhotoUploaderOpen}
+          onClose={() => setIsPhotoUploaderOpen(false)}
+          onPhotoSave={(photoDataUrl) => {
+            setFormData(prev => ({...prev, profilePhotoUrl: photoDataUrl}));
+            setIsPhotoUploaderOpen(false);
+          }}
+        />
+      </>
     );
 };
 
