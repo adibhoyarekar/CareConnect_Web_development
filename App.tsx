@@ -12,7 +12,8 @@ import PatientProfile from './components/PatientProfile';
 import ReceptionistProfile from './components/ReceptionistProfile';
 import Spinner from './components/Spinner';
 
-const API_BASE_URL = 'http://localhost:3001/api';
+// IMPORTANT: Replace this URL with your actual Render backend URL
+const API_BASE_URL = 'https://your-backend-service-url.onrender.com/api';
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
