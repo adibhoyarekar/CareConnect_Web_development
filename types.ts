@@ -36,6 +36,14 @@ export interface Doctor extends User {
   profileComplete?: boolean;
 }
 
+export interface HealthHistoryItem {
+  id: string;
+  type: 'illness' | 'surgery' | 'condition';
+  name: string;
+  date: string; // Year or full date
+  notes?: string;
+}
+
 export interface Patient extends User {
   age: number;
   gender: 'Male' | 'Female' | 'Other';
@@ -43,6 +51,7 @@ export interface Patient extends User {
   medicalNotes?: string;
   weight?: number;
   profileComplete?: boolean;
+  healthHistory?: HealthHistoryItem[];
 }
 
 export interface Appointment {

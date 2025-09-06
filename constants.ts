@@ -27,9 +27,18 @@ export const MOCK_DOCTORS: Doctor[] = [
 
 export const MOCK_PATIENTS: Patient[] = [
   { id: 'pat1', name: 'Alice Johnson', email: 'alice@email.com', role: Role.Patient, age: 0, gender: 'Other', contact: '', medicalNotes: 'Allergic to penicillin.', profileComplete: false, password: MOCK_PASSWORD, weight: 0 },
-  { id: 'pat2', name: 'Bob Williams', email: 'bob@email.com', role: Role.Patient, age: 45, gender: 'Male', contact: '987-654-3211', profileComplete: true, password: MOCK_PASSWORD, weight: 85 },
+  { id: 'pat2', name: 'Bob Williams', email: 'bob@email.com', role: Role.Patient, age: 45, gender: 'Male', contact: '987-654-3211', profileComplete: true, password: MOCK_PASSWORD, weight: 85,
+    healthHistory: [
+      { id: 'hh1', type: 'surgery', name: 'Knee Surgery (ACL)', date: '2018', notes: 'Full recovery.' },
+      { id: 'hh2', type: 'illness', name: 'Pneumonia', date: '2020', notes: 'Hospitalized for 3 days.' }
+    ]
+  },
   { id: 'pat3', name: 'Charlie Brown', email: 'charlie@email.com', role: Role.Patient, age: 28, gender: 'Male', contact: '987-654-3212', profileComplete: true, password: MOCK_PASSWORD, weight: 70 },
-  { id: 'pat4', name: 'Diana Prince', email: 'diana@email.com', role: Role.Patient, age: 52, gender: 'Female', contact: '987-654-3213', medicalNotes: 'History of migraines.', profileComplete: true, password: MOCK_PASSWORD, weight: 65 },
+  { id: 'pat4', name: 'Diana Prince', email: 'diana@email.com', role: Role.Patient, age: 52, gender: 'Female', contact: '987-654-3213', medicalNotes: 'History of migraines.', profileComplete: true, password: MOCK_PASSWORD, weight: 65,
+    healthHistory: [
+      { id: 'hh3', type: 'condition', name: 'Migraines', date: 'Ongoing', notes: 'Managed with prescribed medication.' }
+    ]
+  },
 ];
 
 export const MOCK_RECEPTIONIST: User = { id: 'rec1', name: 'Alex Ray', email: 'alex.ray@clinic.com', role: Role.Receptionist, password: MOCK_PASSWORD };

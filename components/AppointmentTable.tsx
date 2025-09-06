@@ -71,9 +71,12 @@ const AppointmentTable: React.FC<AppointmentTableProps> = ({
             <tr key={appt.id}>
               {currentUserRole !== Role.Patient && (
                 <td className="px-6 py-4 whitespace-nowrap">
-                    <button onClick={() => onPatientClick && onPatientClick(appt.patientId)} className="text-sm font-medium text-primary-600 hover:underline disabled:text-gray-500 disabled:no-underline" disabled={!onPatientClick}>
-                        {getPatientName(appt.patientId)}
+                  <div className="text-sm font-medium text-gray-900">{getPatientName(appt.patientId)}</div>
+                  {onPatientClick && (
+                    <button onClick={() => onPatientClick(appt.patientId)} className="text-xs text-primary-600 hover:underline focus:outline-none">
+                      View Details
                     </button>
+                  )}
                 </td>
               )}
               {currentUserRole !== Role.Doctor && (

@@ -236,6 +236,30 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ doctor, appointments,
                     </ul>
                 ) : <p className="text-gray-500 mt-2">No reports uploaded by the clinic for this patient.</p>}
             </div>
+             <div className="pt-4 border-t border-gray-200">
+                <h4 className="font-semibold text-lg text-gray-900">Patient Health History</h4>
+                {(selectedPatient.healthHistory && selectedPatient.healthHistory.length > 0) ? (
+                    <ul className="space-y-3 mt-2 max-h-60 overflow-y-auto">
+                        {selectedPatient.healthHistory.map(item => {
+                            const typeStyles = {
+                                condition: { icon: '❤️', color: 'bg-blue-100 text-blue-800' },
+                                illness: { icon: '🤒', color: 'bg-yellow-100 text-yellow-800' },
+                                surgery: { icon: '🔪', color: 'bg-red-100 text-red-800' },
+                            };
+                            return (
+                                <li key={item.id} className="p-3 bg-gray-50 rounded-lg flex items-start space-x-3">
+                                   <span className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-lg ${typeStyles[item.type].color}`}>{typeStyles[item.type].icon}</span>
+                                    <div className="flex-1">
+                                        <p className="font-semibold text-gray-800">{item.name}</p>
+                                        <p className="text-sm text-gray-500">{item.date}</p>
+                                        {item.notes && <p className="text-xs text-gray-600 mt-1 italic">"{item.notes}"</p>}
+                                    </div>
+                                </li>
+                            )
+                        })}
+                    </ul>
+                ) : <p className="text-gray-500 mt-2">No health history provided by the patient.</p>}
+            </div>
         </div>}
      </Modal>
      <Modal isOpen={isRecordUploadModalOpen} onClose={() => setIsRecordUploadModalOpen(false)} title={`Upload for ${selectedPatient?.name}`}>

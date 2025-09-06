@@ -1,17 +1,67 @@
 import express from 'express';
 import cors from 'cors';
 import { Low } from 'lowdb';
-import { JSONFile } from 'lowdb/node';
+import { JSONFileSync } from 'lowdb/node';
 import { nanoid } from 'nanoid';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import fs from 'fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// Setup lowdb
-const adapter = new JSONFile(join(__dirname, 'db.json'));
-const db = new Low(adapter, {});
-await db.read();
+// --- Database setup ---
+// Differentiate between production (like on Render) and local development
+const isProduction = process.env.NODE_ENV === 'production';
+const localDbPath = join(__dirname, 'db.json');
+// In production, use a persistent disk path. Locally, use the file in the project.
+const dbPath = isProduction ? '/data/db.json' : localDbPath;
+
+
+// In a production environment, if the persistent database doesn't exist,
+// seed it from the local db.json file that's part of the repository.
+if (isProduction && !fs.existsSync(dbPath)) {
+  console.log('Production environment: No persistent database found. Seeding initial data...');
+  // Ensure the directory exists on the persistent disk
+  try {
+    fs.mkdirSync(dirname(dbPath), { recursive: true });
+    fs.copyFileSync(localDbPath, dbPath);
+    console.log('Initial data seeded to persistent disk.');
+  } catch (error) {
+    console.error('Failed to seed persistent database:', error);
+  }
+}
+
+// FIX: Define a default structure for the database to ensure type safety
+// and prevent crashes if the database file is missing or corrupted.
+const defaultData = { 
+  doctors: [], 
+  patients: [], 
+  receptionists: [], 
+  appointments: [], 
+  medicalRecords: [], 
+  reviews: [], 
+  notifications: [] 
+};
+
+
+// Use the determined database path with a synchronous adapter.
+// Pass the default data structure to the LowDB constructor.
+const adapter = new JSONFileSync(dbPath);
+const db = new Low(adapter, defaultData);
+
+// Read data from the database file.
+// If the file doesn't exist, LowDB will use `defaultData`.
+// If the file is empty or malformed, `db.data` will be `null`.
+db.read();
+
+// FIX: If the database file was malformed, `db.data` will be null.
+// In this case, we reset the database to the default structure to prevent crashes.
+if (db.data === null) {
+    console.warn('Database file was empty or malformed. Initializing with default data.');
+    db.data = defaultData;
+    db.write();
+}
+
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -22,6 +72,7 @@ app.use(express.json());
 // Helper function to find a user
 const findUser = (email) => {
     const { doctors, patients, receptionists } = db.data;
+    if (!doctors || !patients || !receptionists) return null;
     const allUsers = [...doctors, ...patients, ...receptionists];
     return allUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
 };
@@ -56,7 +107,7 @@ app.post('/api/forgot-password', (req, res) => {
 });
 
 
-app.post('/api/signup', async (req, res) => {
+app.post('/api/signup', (req, res) => {
     const details = req.body;
     if (findUser(details.email)) {
         return res.status(409).json({ message: 'An account with this email already exists.' });
@@ -67,18 +118,18 @@ app.post('/api/signup', async (req, res) => {
     if (newUser.role === 'Doctor') {
         const newDoctor = { ...newUser, specialty: '', address: '', fees: 0, mobile: '', profileComplete: false, workingSchedule: {} };
         db.data.doctors.push(newDoctor);
-        await db.write();
+        db.write();
         const { password: _, ...userToReturn } = newDoctor;
         res.status(201).json(userToReturn);
     } else if (newUser.role === 'Patient') {
         const newPatient = { ...newUser, age: 0, gender: 'Other', contact: '', profileComplete: false, weight: 0 };
         db.data.patients.push(newPatient);
-        await db.write();
+        db.write();
         const { password: _, ...userToReturn } = newPatient;
         res.status(201).json(userToReturn);
     } else if (newUser.role === 'Receptionist') {
         db.data.receptionists.push(newUser);
-        await db.write();
+        db.write();
         const { password: _, ...userToReturn } = newUser;
         res.status(201).json(userToReturn);
     } else {
@@ -86,7 +137,7 @@ app.post('/api/signup', async (req, res) => {
     }
 });
 
-app.post('/api/social-signup', async (req, res) => {
+app.post('/api/social-signup', (req, res) => {
     const { role, account } = req.body;
     const existingUser = findUser(account.email);
     if (existingUser) {
@@ -105,13 +156,13 @@ app.post('/api/social-signup', async (req, res) => {
     if (role === 'Doctor') {
         const newDoctor = { ...newUserBase, specialty: '', address: '', fees: 0, mobile: '', profileComplete: false, workingSchedule: {} };
         db.data.doctors.push(newDoctor);
-        await db.write();
+        db.write();
         const { password: _, ...userToReturn } = newDoctor;
         res.status(201).json(userToReturn);
     } else if (role === 'Patient') {
         const newPatient = { ...newUserBase, age: 0, gender: 'Other', contact: '', profileComplete: false, weight: 0 };
         db.data.patients.push(newPatient);
-        await db.write();
+        db.write();
         const { password: _, ...userToReturn } = newPatient;
         res.status(201).json(userToReturn);
     } else {
@@ -141,15 +192,15 @@ app.get('/api/data', (req, res) => {
 
 
 // --- APPOINTMENTS ---
-app.post('/api/appointments', async (req, res) => {
+app.post('/api/appointments', (req, res) => {
     const newAppointmentData = req.body;
     const newAppointment = { ...newAppointmentData, id: `apt-${nanoid(8)}` };
     db.data.appointments.push(newAppointment);
-    await db.write();
+    db.write();
     res.status(201).json(newAppointment);
 });
 
-app.put('/api/appointments/:id', async (req, res) => {
+app.put('/api/appointments/:id', (req, res) => {
     const { id } = req.params;
     const updatedAppointmentData = req.body;
     const index = db.data.appointments.findIndex(a => a.id === id);
@@ -188,19 +239,19 @@ app.put('/api/appointments/:id', async (req, res) => {
         }
     }
 
-    await db.write();
+    db.write();
     // Return all notifications so frontend can update its state
     res.json({ updatedAppointment: updatedAppointmentData, notifications: db.data.notifications });
 });
 
 // FIX: Add a route to handle appointment deletion
-app.delete('/api/appointments/:id', async (req, res) => {
+app.delete('/api/appointments/:id', (req, res) => {
     const { id } = req.params;
     const index = db.data.appointments.findIndex(a => a.id === id);
 
     if (index !== -1) {
         db.data.appointments.splice(index, 1);
-        await db.write();
+        db.write();
         res.status(200).json({ message: 'Appointment deleted successfully' });
     } else {
         res.status(404).json({ message: 'Appointment not found' });
@@ -208,81 +259,81 @@ app.delete('/api/appointments/:id', async (req, res) => {
 });
 
 // --- PROFILES ---
-app.put('/api/doctors/:id', async (req, res) => {
+app.put('/api/doctors/:id', (req, res) => {
     const { id } = req.params;
     const updatedDoctorData = req.body;
     const index = db.data.doctors.findIndex(d => d.id === id);
     if (index === -1) return res.status(404).json({ message: 'Doctor not found.' });
     db.data.doctors[index] = { ...db.data.doctors[index], ...updatedDoctorData };
-    await db.write();
+    db.write();
     const { password, ...userToReturn } = db.data.doctors[index];
     res.json(userToReturn);
 });
 
-app.put('/api/patients/:id', async (req, res) => {
+app.put('/api/patients/:id', (req, res) => {
     const { id } = req.params;
     const updatedPatientData = req.body;
     const index = db.data.patients.findIndex(p => p.id === id);
     if (index === -1) return res.status(404).json({ message: 'Patient not found.' });
     db.data.patients[index] = { ...db.data.patients[index], ...updatedPatientData };
-    await db.write();
+    db.write();
     const { password, ...userToReturn } = db.data.patients[index];
     res.json(userToReturn);
 });
 
-app.put('/api/receptionists/:id', async (req, res) => {
+app.put('/api/receptionists/:id', (req, res) => {
     const { id } = req.params;
     const updatedReceptionistData = req.body;
     const index = db.data.receptionists.findIndex(r => r.id === id);
     if (index === -1) return res.status(404).json({ message: 'Receptionist not found.' });
     db.data.receptionists[index] = { ...db.data.receptionists[index], ...updatedReceptionistData };
-    await db.write();
+    db.write();
     const { password, ...userToReturn } = db.data.receptionists[index];
     res.json(userToReturn);
 });
 
 // --- MEDICAL RECORDS ---
-app.post('/api/medical-records', async (req, res) => {
+app.post('/api/medical-records', (req, res) => {
     const newRecordData = req.body;
     const newRecord = { ...newRecordData, id: `rec-${nanoid(8)}` };
     db.data.medicalRecords.push(newRecord);
-    await db.write();
+    db.write();
     res.status(201).json(newRecord);
 });
 
 // --- REVIEWS ---
-app.post('/api/reviews', async (req, res) => {
+app.post('/api/reviews', (req, res) => {
     const newReviewData = req.body;
     const newReview = { ...newReviewData, id: `rev-${nanoid(8)}` };
     db.data.reviews.push(newReview);
-    await db.write();
+    db.write();
     res.status(201).json(newReview);
 });
 
 // --- NOTIFICATIONS ---
-app.put('/api/notifications/read', async (req, res) => {
+app.put('/api/notifications/read', (req, res) => {
     const { id } = req.body;
     const notification = db.data.notifications.find(n => n.id === id);
     if (notification) {
         notification.read = true;
-        await db.write();
+        db.write();
     }
     res.status(200).json(notification || {});
 });
 
-app.put('/api/notifications/read-all', async (req, res) => {
+app.put('/api/notifications/read-all', (req, res) => {
     const { userId } = req.body;
     db.data.notifications.forEach(n => {
         if (n.userId === userId) {
             n.read = true;
         }
     });
-    await db.write();
+    db.write();
     res.status(200).json({ message: 'All notifications marked as read.' });
 });
 
 // --- REMINDER GENERATION (could be a cron job in real app) ---
-app.post('/api/generate-reminders', async (req, res) => {
+app.post('/api/generate-reminders', (req, res) => {
     const getTomorrowsDate = () => {
         const tomorrow = new Date();
         tomorrow.setDate(tomorrow.getDate() + 1);
@@ -322,7 +373,7 @@ app.post('/api/generate-reminders', async (req, res) => {
 
     if (newNotifications.length > 0) {
       db.data.notifications.push(...newNotifications);
-      await db.write();
+      db.write();
     }
 
     res.json({ newNotifications });
@@ -331,4 +382,5 @@ app.post('/api/generate-reminders', async (req, res) => {
 
 app.listen(PORT, () => {
     console.log(`Backend server is running on http://localhost:${PORT}`);
+    console.log(`Using database file at: ${dbPath}`);
 });

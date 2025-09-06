@@ -49,47 +49,127 @@
   </script>
   <style>
     body {
-      background-color: #ecfeff; /* cyan-50 */
-      background-image: 
-        radial-gradient(circle at 100% 0%, rgba(165, 243, 252, 0.5) 0%, transparent 30%), /* cyan-200 */
-        radial-gradient(circle at 0% 100%, rgba(207, 250, 254, 0.6) 0%, transparent 40%); /* cyan-100 */
+       background-color: #083344; /* primary-950 */
+       overflow: hidden;
     }
-    body::before {
-      content: '';
+    #bg-canvas {
       position: fixed;
       top: 0;
       left: 0;
-      right: 0;
-      bottom: 0;
-      background-image: url('https://images.unsplash.com/photo-1576091160550-2173dba999ef?q=80&w=2070&auto=format&fit=crop');
-      background-size: cover;
-      background-position: center;
-      background-repeat: no-repeat;
-      opacity: 0.15;
+      width: 100%;
+      height: 100%;
       z-index: -1;
+      opacity: 0.8;
+      filter: blur(100px);
     }
   </style>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
   <script type="module" src="https://unpkg.com/@splinetool/viewer@1.0.94/build/spline-viewer.js"></script>
-</head>
-<body class="bg-primary-50">
-  <div id="root"></div>
-  <script type="importmap">
-  {
-    "imports": {
-      "react/": "https://aistudiocdn.com/react@^19.1.1/",
-      "react": "https://aistudiocdn.com/react@^19.1.1",
-      "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
-      "express": "https://aistudiocdn.com/express@^5.1.0",
-      "url": "https://aistudiocdn.com/url@^0.11.4",
-      "cors": "https://aistudiocdn.com/cors@^2.8.5",
-      "path": "https://aistudiocdn.com/path@^0.12.7",
-      "nanoid": "https://aistudiocdn.com/nanoid@^5.1.5",
-      "lowdb/": "https://aistudiocdn.com/lowdb@^7.0.1/",
-      "lowdb": "https://aistudiocdn.com/lowdb@^7.0.1"
-    }
+<script type="importmap">
+{
+  "imports": {
+    "framer-motion": "https://aistudiocdn.com/framer-motion@^12.23.12",
+    "fs": "https://aistudiocdn.com/fs@^0.0.1-security",
+    "react/": "https://aistudiocdn.com/react@^19.1.1/",
+    "react": "https://aistudiocdn.com/react@^19.1.1",
+    "express": "https://aistudiocdn.com/express@^5.1.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
+    "nanoid": "https://aistudiocdn.com/nanoid@^5.1.5",
+    "cors": "https://aistudiocdn.com/cors@^2.8.5",
+    "path": "https://aistudiocdn.com/path@^0.12.7",
+    "url": "https://aistudiocdn.com/url@^0.11.4",
+    "lowdb/": "https://aistudiocdn.com/lowdb@^7.0.1/",
+    "lowdb": "https://aistudiocdn.com/lowdb@^7.0.1",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.17.0"
   }
-  </script>
+}
+</script>
+</head>
+<body class="bg-primary-950">
+  <canvas id="bg-canvas"></canvas>
+  <div id="root"></div>
+<script>
+    // Interactive background script
+    const canvas = document.getElementById('bg-canvas');
+    const ctx = canvas.getContext('2d');
+    
+    let width, height;
+    const blobs = [];
+    const blobCount = 4;
+    const colors = ['#06b6d4', '#22d3ee', '#0e7490', '#67e8f9'];
+
+    const mouse = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+
+    class Blob {
+        constructor() {
+            this.x = Math.random() * width;
+            this.y = Math.random() * height;
+            this.vx = (Math.random() - 0.5) * 1.5;
+            this.vy = (Math.random() - 0.5) * 1.5;
+            this.radius = 150 + Math.random() * 100;
+            this.color = colors[Math.floor(Math.random() * colors.length)];
+        }
+
+        update() {
+            const dx = this.x - mouse.x;
+            const dy = this.y - mouse.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (dist < 200) {
+                const angle = Math.atan2(dy, dx);
+                this.vx += Math.cos(angle) * 0.3;
+                this.vy += Math.sin(angle) * 0.3;
+            }
+            
+            this.x += this.vx;
+            this.y += this.vy;
+
+            if (this.x < 0 || this.x > width) this.vx *= -1;
+            if (this.y < 0 || this.y > height) this.vy *= -1;
+
+            // Dampen velocity
+            this.vx *= 0.99;
+            this.vy *= 0.99;
+        }
+
+        draw() {
+            const gradient = ctx.createRadialGradient(this.x, this.y, this.radius * 0.7, this.x, this.y, this.radius);
+            gradient.addColorStop(0, this.color);
+            gradient.addColorStop(1, 'transparent');
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    function init() {
+        width = canvas.width = window.innerWidth;
+        height = canvas.height = window.innerHeight;
+        blobs.length = 0;
+        for (let i = 0; i < blobCount; i++) {
+            blobs.push(new Blob());
+        }
+        animate();
+    }
+
+    function animate() {
+        ctx.clearRect(0, 0, width, height);
+        blobs.forEach(blob => {
+            blob.update();
+            blob.draw();
+        });
+        requestAnimationFrame(animate);
+    }
+
+    window.addEventListener('resize', init);
+    window.addEventListener('mousemove', (e) => {
+        mouse.x = e.clientX;
+        mouse.y = e.clientY;
+    });
+
+    init();
+</script>
   <script type="module" src="/index.js"></script>
 </body>
 </html>

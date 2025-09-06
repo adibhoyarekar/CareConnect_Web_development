@@ -12,6 +12,9 @@ import PatientProfile from './components/PatientProfile';
 import DoctorProfile from './components/DoctorProfile';
 import ReceptionistProfile from './components/ReceptionistProfile';
 
+// TODO: DEPLOYMENT STEP
+// After deploying your backend to Render, replace this URL with your new live backend URL.
+// It will look something like 'https://your-backend-name.onrender.com/api'
 const API_BASE_URL = 'https://careconnect-backend-45u6.onrender.com/api';
 
 const App: React.FC = () => {
@@ -293,6 +296,7 @@ const App: React.FC = () => {
             addAppointment={handleAddAppointment}
             addMedicalRecord={handleAddMedicalRecord}
             addReview={handleAddReview}
+            onNavigateToProfile={() => setActiveView('profile')}
           />
         );
       case Role.Doctor:
@@ -330,7 +334,7 @@ const App: React.FC = () => {
   const userNotifications = notifications.filter(n => n.userId === currentUser?.id);
 
   return (
-    <div className="min-h-screen bg-primary-50 font-sans">
+    <div className="min-h-screen bg-primary-950 font-sans">
       {!currentUser ? (
         <Login onSignIn={handleSignIn} onSignUp={handleSignUp} onSocialSignUp={handleSocialSignUp} error={authError} isLoading={isAuthLoading} />
       ) : (
@@ -347,7 +351,7 @@ const App: React.FC = () => {
             {isLoading ? (
                <div className="flex flex-col justify-center items-center h-96">
                   <Spinner size="lg" />
-                  <p className="mt-4 text-gray-600">Loading your dashboard...</p>
+                  <p className="mt-4 text-gray-400">Loading your dashboard...</p>
                </div>
             ) : renderDashboard()}
           </main>

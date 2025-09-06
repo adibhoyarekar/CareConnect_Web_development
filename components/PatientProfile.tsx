@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Patient } from '../types';
+import { Patient, HealthHistoryItem } from '../types';
 import Spinner from './Spinner';
+import HealthHistoryManager from './HealthHistoryManager';
 
 interface PatientProfileProps {
   patient: Patient;
@@ -19,6 +20,7 @@ const PatientProfile: React.FC<PatientProfileProps> = ({ patient, onSave, onBack
         contact: patient.contact || '',
         weight: patient.weight || '',
         medicalNotes: patient.medicalNotes || '',
+        healthHistory: patient.healthHistory || [],
     });
     
     const inputBaseClasses = "mt-1 block w-full rounded-md shadow-sm sm:text-sm bg-gray-100 border-gray-300 text-gray-900 focus:ring-primary-500 focus:border-primary-500 py-2 px-3 disabled:bg-gray-200 disabled:text-gray-500";
@@ -26,6 +28,12 @@ const PatientProfile: React.FC<PatientProfileProps> = ({ patient, onSave, onBack
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleHistoryChange = (newHistory: HealthHistoryItem[]) => {
+        if (isEditing) {
+            setFormData(prev => ({ ...prev, healthHistory: newHistory }));
+        }
     };
 
     const handleSave = async (e: React.FormEvent) => {
@@ -52,6 +60,7 @@ const PatientProfile: React.FC<PatientProfileProps> = ({ patient, onSave, onBack
             contact: patient.contact,
             weight: patient.weight || '',
             medicalNotes: patient.medicalNotes || '',
+            healthHistory: patient.healthHistory || [],
         });
         setIsEditing(false);
     }
@@ -105,8 +114,16 @@ const PatientProfile: React.FC<PatientProfileProps> = ({ patient, onSave, onBack
                         <input type="tel" id="contact" name="contact" value={formData.contact} onChange={handleChange} className={inputBaseClasses} disabled={!isEditing} />
                     </div>
                     <div>
-                        <label htmlFor="medicalNotes" className="block text-sm font-medium text-gray-700">Medical Notes</label>
-                        <textarea id="medicalNotes" name="medicalNotes" rows={4} value={formData.medicalNotes} onChange={handleChange} className={inputBaseClasses} placeholder="e.g. Allergies, past conditions..." disabled={!isEditing} />
+                        <label htmlFor="medicalNotes" className="block text-sm font-medium text-gray-700">General Medical Notes</label>
+                        <textarea id="medicalNotes" name="medicalNotes" rows={4} value={formData.medicalNotes} onChange={handleChange} className={inputBaseClasses} placeholder="e.g. Allergies, current medications..." disabled={!isEditing} />
+                    </div>
+
+                    <div className="pt-6 border-t border-gray-200">
+                        <HealthHistoryManager 
+                            healthHistory={formData.healthHistory}
+                            onHistoryChange={handleHistoryChange}
+                            isEditing={isEditing}
+                        />
                     </div>
 
                     <div className="flex justify-end space-x-4 pt-4 border-t border-gray-200">
