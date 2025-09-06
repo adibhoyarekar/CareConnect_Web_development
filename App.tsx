@@ -13,7 +13,7 @@ import ReceptionistProfile from './components/ReceptionistProfile';
 import Spinner from './components/Spinner';
 
 // IMPORTANT: Replace this URL with your actual Render backend URL
-const API_BASE_URL = 'https://your-backend-service-url.onrender.com/api';
+const API_BASE_URL = 'https://careconnect-backend-45u6.onrender.com/api';
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
