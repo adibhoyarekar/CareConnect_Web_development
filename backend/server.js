@@ -28,6 +28,16 @@ if (isProduction && !fs.existsSync(dbPath)) {
     console.log('Initial data seeded to persistent disk.');
   } catch (error) {
     console.error('Failed to seed persistent database:', error);
+    // FIX: Provide a more helpful error message for common deployment issues on platforms like Render.
+    if (error.code === 'EACCES' && dbPath.startsWith('/data')) {
+        console.error('\n--- DEPLOYMENT HELP ---');
+        console.error('This error indicates the application does not have permission to write to the "/data" directory.');
+        console.error('On a platform like Render, you must create a "Persistent Disk" and mount it at the path "/data" in your service settings.');
+        console.error('After configuring the disk, please redeploy the service.');
+        console.error('The server cannot start without a writable database path. Exiting.');
+        console.error('-----------------------\n');
+        process.exit(1); // Exit gracefully to prevent running in a broken state.
+    }
   }
 }
 
